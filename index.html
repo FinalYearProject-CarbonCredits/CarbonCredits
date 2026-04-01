@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CarbonChain — Digital Carbon Credit System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav>
+  <div>
+    <div class="nav-logo">CarbonChain <span>DIGITAL CARBON CREDIT SYSTEM v2.0</span></div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-page="dashboard">Dashboard</button>
+    <button class="nav-tab" data-page="satellite">Satellite Data</button>
+    <button class="nav-tab" data-page="ai-engine">AI Engine</button>
+    <button class="nav-tab" data-page="blockchain">Blockchain</button>
+    <button class="nav-tab" data-page="trading">Trading</button>
+    <button class="nav-tab" data-page="projects">Projects</button>
+    <button class="nav-tab" data-page="ai-advisor">AI Advisor</button>
+  </div>
+  <div class="nav-status">
+    <div class="status-dot"></div>
+    NETWORK LIVE
+  </div>
+</nav>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="hero">
+    <div class="hero-label">// Global Carbon Registry</div>
+    <div class="hero-title">CARBON<br><span>CHAIN</span></div>
+    <div class="hero-sub">AI-verified, blockchain-registered carbon credits. Transparent, comparable, and liquid — powered by satellite data and the PACT methodology.</div>
+    <div class="hero-meta">
+      <div class="hero-stat"><div class="hero-stat-val">14.2M</div><div class="hero-stat-lab">// tCO₂ Verified</div></div>
+      <div class="hero-stat"><div class="hero-stat-val">₹847Cr</div><div class="hero-stat-lab">// Market Value</div></div>
+      <div class="hero-stat"><div class="hero-stat-val">312</div><div class="hero-stat-lab">// Active Projects</div></div>
+      <div class="hero-stat"><div class="hero-stat-val">98.4%</div><div class="hero-stat-lab">// Accuracy Rate</div></div>
+    </div>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">// Credits Issued (MTD)</div>
+      <div class="metric-val green">2.4M</div>
+      <div class="metric-change up">↑ 18.3% vs last month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">// Avg Credit Price</div>
+      <div class="metric-val amber">₹1,240</div>
+      <div class="metric-change up">↑ 4.2% this week</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">// Credits Retired</div>
+      <div class="metric-val blue">890K</div>
+      <div class="metric-change up">↑ 22.1% this quarter</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">// Fraud Prevented</div>
+      <div class="metric-val red">147</div>
+      <div class="metric-change">Fraudulent claims blocked</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-2col">
+      <div>
+        <div class="section-head"><div class="section-title">Live Activity</div><span class="badge badge-green">LIVE</span></div>
+        <div class="feed" id="live-feed">
+          <div class="feed-item"><div class="feed-dot green"></div><div class="feed-text">Sundarbans Mangrove Project — 1,200 tCO₂ verified <span>// Satellite scan complete</span></div><div class="feed-time">now</div></div>
+          <div class="feed-item"><div class="feed-dot blue"></div><div class="feed-text">Token TKN#4821 retired by Tata Steel <span>// 500 tCO₂ offset</span></div><div class="feed-time">2m ago</div></div>
+          <div class="feed-item"><div class="feed-dot amber"></div><div class="feed-text">Gujarat Wind Farm — PACT score: 87.4 <span>// AI evaluation complete</span></div><div class="feed-time">5m ago</div></div>
+          <div class="feed-item"><div class="feed-dot green"></div><div class="feed-text">Madhya Pradesh Reforestation — 3,400 tCO₂ minted <span>// Block #28491</span></div><div class="feed-time">8m ago</div></div>
+          <div class="feed-item"><div class="feed-dot red"></div><div class="feed-text">Project PKT-002 flagged — Leakage detected <span>// Manual review</span></div><div class="feed-time">12m ago</div></div>
+          <div class="feed-item"><div class="feed-dot blue"></div><div class="feed-text">DEX trade — 2,000 CCT at ₹1,235 <span>// Settled on-chain</span></div><div class="feed-time">14m ago</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head"><div class="section-title">Credit Issuance</div><span class="badge badge-blue">30D TREND</span></div>
+        <div class="card">
+          <div class="chart-wrap"><canvas id="chart-issuance"></canvas></div>
+          <div style="display:flex; gap:24px; margin-top:8px;">
+            <div><div style="font-size:11px; color:var(--text3); font-family:var(--mono);">ISSUED</div><div style="color:var(--green); font-family:var(--display); font-size:28px;">2.4M</div></div>
+            <div><div style="font-size:11px; color:var(--text3); font-family:var(--mono);">RETIRED</div><div style="color:var(--blue); font-family:var(--display); font-size:28px;">890K</div></div>
+            <div><div style="font-size:11px; color:var(--text3); font-family:var(--mono);">PENDING</div><div style="color:var(--amber); font-family:var(--display); font-size:28px;">340K</div></div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="section-head"><div class="section-title">Project Types</div></div>
+          <div class="card">
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div><div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;"><span>Reforestation</span><span style="color:var(--green); font-family:var(--mono);">38%</span></div><div class="progress-bar"><div class="progress-fill green" style="width:38%"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;"><span>Renewable Energy</span><span style="color:var(--amber); font-family:var(--mono);">29%</span></div><div class="progress-bar"><div class="progress-fill amber" style="width:29%"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;"><span>Soil Carbon</span><span style="color:var(--blue); font-family:var(--mono);">19%</span></div><div class="progress-bar"><div class="progress-fill blue" style="width:19%"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;"><span>Methane Capture</span><span style="color:var(--text3); font-family:var(--mono);">14%</span></div><div class="progress-bar"><div class="progress-fill green" style="width:14%; opacity:0.4;"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SATELLITE DATA -->
+<div class="page" id="page-satellite">
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Satellite Data Layer</div><div class="section-sub">// Real-time earth observation & climate datasets</div></div>
+      <button class="btn btn-green" id="btn-run-satellite">⟳ Run New Scan</button>
+    </div>
+
+    <div class="section-3col" style="margin-bottom:24px;">
+      <div class="card"><div class="card-title">// Active Satellites</div><div class="card-val">24</div><div class="card-sub">Sentinel-2, Landsat-9, MODIS, Planet Labs coverage active</div></div>
+      <div class="card"><div class="card-title">// Scans Today</div><div class="card-val" style="color:var(--green);">1,847</div><div class="card-sub">Across 312 registered carbon project areas</div></div>
+      <div class="card"><div class="card-title">// Coverage</div><div class="card-val" style="color:var(--blue);">98.2%</div><div class="card-sub">Of all registered project geofences within last 24h</div></div>
+    </div>
+
+    <div class="section-2col">
+      <div>
+        <div class="card-title" style="margin-bottom:12px;">// Recent Satellite Passes</div>
+        <div class="sat-grid" id="sat-grid"></div>
+      </div>
+
+      <div>
+        <div class="card-title" style="margin-bottom:12px;">// NDVI Analysis Queue</div>
+        <div class="feed">
+          <div class="feed-item"><div class="feed-dot green"></div><div class="feed-text">Sentinel-2 Pass — Sundarbans <span>// NDVI: 0.82 | Biomass: HIGH</span></div><div class="feed-time">Live</div></div>
+          <div class="feed-item"><div class="feed-dot green"></div><div class="feed-text">Landsat-9 Pass — Western Ghats <span>// NDVI: 0.79 | Carbon: 142t/ha</span></div><div class="feed-time">4m</div></div>
+          <div class="feed-item"><div class="feed-dot amber"></div><div class="feed-text">MODIS — Rajasthan Solar Farm <span>// Reflectance: processing</span></div><div class="feed-time">9m</div></div>
+          <div class="feed-item"><div class="feed-dot blue"></div><div class="feed-text">Planet Lab — Odisha Mangroves <span>// 3m resolution acquired</span></div><div class="feed-time">14m</div></div>
+          <div class="feed-item"><div class="feed-dot green"></div><div class="feed-text">Sentinel-1 SAR — Bihar Wetlands <span>// Biomass density mapped</span></div><div class="feed-time">22m</div></div>
+        </div>
+
+        <div class="card" style="margin-top:20px;">
+          <div class="card-title">// Data Parameters Tracked</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">NDVI Index</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Biomass Density</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Land Cover Change</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">CO₂ Flux Rate</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Deforestation Risk</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Soil Moisture</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Surface Temperature</div>
+            <div style="font-family:var(--mono); font-size:11px; color:var(--text2); padding:8px; background:var(--bg3); border-radius:4px;">Albedo / Reflectance</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI ENGINE -->
+<div class="page" id="page-ai-engine">
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">AI Evaluation Engine</div><div class="section-sub">// PACT methodology — additionality · leakage · permanence</div></div>
+      <button class="btn btn-green" id="btn-run-eval-header">▶ Run Evaluation</button>
+    </div>
+
+    <div class="section-2col">
+      <div>
+        <div class="card">
+          <div class="card-title">// Submit Project for AI Evaluation</div>
+          <div class="form-group">
+            <label class="form-label">Project Name</label>
+            <input class="form-input" id="proj-name" placeholder="e.g. Sundarbans Mangrove Restoration" value="Western Ghats Reforestation Initiative">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Project Type</label>
+            <select class="form-select" id="proj-type">
+              <option>Reforestation / Afforestation</option>
+              <option>Renewable Energy</option>
+              <option>Soil Carbon Sequestration</option>
+              <option>Methane Capture</option>
+              <option>Mangrove Conservation</option>
+              <option>Blue Carbon</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Project Area (hectares)</label>
+            <input class="form-input" id="proj-area" type="number" value="4200">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Claimed CO₂ Reduction (tCO₂/yr)</label>
+            <input class="form-input" id="proj-co2" type="number" value="12500">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Baseline Scenario Description</label>
+            <textarea class="form-textarea" id="proj-baseline">Without this project, the land would remain degraded scrubland with minimal carbon sequestration potential due to historical deforestation pressures and agricultural encroachment in the region.</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Additionality Score (Self-reported): <span id="add-val" style="color:var(--green);font-family:var(--mono);">75</span></label>
+            <input type="range" class="form-range" min="0" max="100" value="75" id="proj-additionality" />
+          </div>
+          <button class="btn btn-green btn-full" id="btn-run-eval-footer">
+            <span id="eval-btn-text">▶ RUN AI EVALUATION</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" id="eval-results">
+          <div class="card-title">// PACT Evaluation Results</div>
+          <div id="eval-placeholder" style="color:var(--text3); font-family:var(--mono); font-size:12px; padding:40px 0; text-align:center;">Submit a project to run AI evaluation...<br><br>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" stroke="rgba(34,197,94,0.2)" stroke-width="1.5"/>
+              <path d="M16 24L22 30L32 18" stroke="rgba(34,197,94,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div id="eval-output" style="display:none;"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">// Recent Evaluations</div>
+          <table>
+            <thead><tr><th>Project</th><th>PACT Score</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr onclick="toast('Sundarbans: Full report available')"><td>Sundarbans Mangrove<div class="mono">PKT-001 · 4,500 ha</div></td><td style="color:var(--green); font-family:var(--mono);">91.2</td><td><span class="badge badge-green">APPROVED</span></td></tr>
+              <tr onclick="toast('Gujarat Wind: Excellent additionality score')"><td>Gujarat Wind Farm<div class="mono">PKT-002 · 800 turbines</div></td><td style="color:var(--green); font-family:var(--mono);">87.4</td><td><span class="badge badge-green">APPROVED</span></td></tr>
+              <tr onclick="toast('Bihar Wetlands: Leakage risk detected')"><td>Bihar Wetlands<div class="mono">PKT-003 · 1,200 ha</div></td><td style="color:var(--amber); font-family:var(--mono);">62.1</td><td><span class="badge badge-amber">REVIEW</span></td></tr>
+              <tr onclick="toast('Rajasthan: Additionality concern flagged')"><td>Rajasthan Solar<div class="mono">PKT-004 · 320 MW</div></td><td style="color:var(--red); font-family:var(--mono);">34.8</td><td><span class="badge badge-red">REJECTED</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCKCHAIN -->
+<div class="page" id="page-blockchain">
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Blockchain Registry</div><div class="section-sub">// Immutable carbon credit ledger — PoS energy-efficient chain</div></div>
+      <button class="btn btn-green" id="btn-add-block">+ Mint Block</button>
+    </div>
+
+    <div class="section-3col" style="margin-bottom:24px;">
+      <div class="card"><div class="card-title">// Chain Height</div><div class="card-val green" id="chain-height">28,492</div><div class="card-sub">Blocks since genesis (Jan 2022)</div></div>
+      <div class="card"><div class="card-title">// Total Tokens</div><div class="card-val" style="color:var(--blue);">14.2M CCT</div><div class="card-sub">Carbon Credit Tokens in circulation</div></div>
+      <div class="card"><div class="card-title">// Energy/Block</div><div class="card-val" style="color:var(--green);">0.001 kWh</div><div class="card-sub">PoS consensus — 99.9% less than PoW</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px; padding:16px;">
+      <div class="card-title">// Live Chain Explorer</div>
+      <div class="chain-wrap"><div class="chain" id="chain-display"></div></div>
+    </div>
+
+    <div class="section-2col">
+      <div class="card">
+        <div class="card-title">// Mint Carbon Credit Token</div>
+        <div class="form-group"><label class="form-label">Project ID</label><input class="form-input" id="mint-project" value="PKT-001 — Sundarbans Mangrove"></div>
+        <div class="form-group"><label class="form-label">Verified tCO₂ Amount</label><input class="form-input" id="mint-amount" type="number" value="1200"></div>
+        <div class="form-group"><label class="form-label">PACT Score</label><input class="form-input" id="mint-pact" value="91.2"></div>
+        <div class="form-group"><label class="form-label">Recipient Wallet</label><input class="form-input" id="mint-wallet" value="0x7f3a...9b21"></div>
+        <button class="btn btn-green btn-full" id="btn-mint-token">⬡ MINT TOKEN ON-CHAIN</button>
+      </div>
+
+      <div>
+        <div class="token-card">
+          <div class="token-symbol">CCT</div>
+          <div class="token-name">// CARBON CREDIT TOKEN — ERC-20</div>
+          <div class="card-sub" style="margin-top:8px; font-size:13px;">Each CCT = 1 verified tonne CO₂ equivalent. Backed by satellite-verified carbon reduction data and AI-scored PACT methodology.</div>
+          <div class="token-detail">
+            <div class="token-detail-item"><div class="token-detail-label">TOTAL SUPPLY</div><div class="token-detail-val">14,200,000</div></div>
+            <div class="token-detail-item"><div class="token-detail-label">CIRCULATING</div><div class="token-detail-val">13,310,000</div></div>
+            <div class="token-detail-item"><div class="token-detail-label">RETIRED</div><div class="token-detail-val">890,000</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">// Recent On-Chain Transactions</div>
+          <div class="feed" style="border:none; border-radius:0;">
+            <div class="feed-item" style="border-radius:0;"><div class="feed-dot green"></div><div class="feed-text">MINT 1,200 CCT → 0x7f3a...9b21 <span>// Block #28492</span></div><div class="feed-time">1m</div></div>
+            <div class="feed-item" style="border-radius:0;"><div class="feed-dot blue"></div><div class="feed-text">RETIRE 500 CCT — Tata Steel <span>// Block #28491</span></div><div class="feed-time">3m</div></div>
+            <div class="feed-item" style="border-radius:0;"><div class="feed-dot amber"></div><div class="feed-text">TRANSFER 2,000 CCT → DEX Pool <span>// Block #28489</span></div><div class="feed-time">6m</div></div>
+            <div class="feed-item" style="border-radius:0;"><div class="feed-dot green"></div><div class="feed-text">MINT 3,400 CCT → 0xac9d...12fe <span>// Block #28488</span></div><div class="feed-time">11m</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRADING -->
+<div class="page" id="page-trading">
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Token Trading</div><div class="section-sub">// Decentralised carbon credit exchange</div></div>
+      <div style="display:flex;gap:8px;"><span class="badge badge-green">DEX LIVE</span><span class="badge badge-blue">CCT/INR</span></div>
+    </div>
+
+    <div class="section-3col" style="margin-bottom:24px;">
+      <div class="card"><div class="card-title">// CCT Price</div><div class="card-val amber">₹1,240</div><div class="metric-change up">↑ ₹52 (4.2%) today</div></div>
+      <div class="card"><div class="card-title">// 24h Volume</div><div class="card-val green">₹4.8Cr</div><div class="metric-change up">↑ 34% vs yesterday</div></div>
+      <div class="card"><div class="card-title">// Pool Liquidity</div><div class="card-val blue">₹22.3Cr</div><div class="card-sub">Across 4 active pools</div></div>
+    </div>
+
+    <div class="section-2col">
+      <div>
+        <div class="card">
+          <div class="card-title">// Place Trade</div>
+          <div style="display:flex; gap:0; margin-bottom:20px; border:1px solid var(--border); border-radius:4px; overflow:hidden;">
+            <button class="btn" id="trade-buy" style="flex:1; border:none; border-radius:0; background:var(--green-glow); color:var(--green);">BUY CCT</button>
+            <button class="btn" id="trade-sell" style="flex:1; border:none; border-radius:0; background:transparent; color:var(--text3);">SELL CCT</button>
+          </div>
+          <div class="form-group"><label class="form-label">Amount (CCT Tokens)</label><input class="form-input" id="trade-amount" type="number" value="100"></div>
+          <div class="form-group"><label class="form-label">Price per CCT (₹)</label><input class="form-input" id="trade-price" value="1240"></div>
+          <div style="background:var(--bg3); border:1px solid var(--border); border-radius:4px; padding:16px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-family:var(--mono); font-size:11px; color:var(--text3);">SUBTOTAL</span><span style="font-family:var(--mono); font-size:13px;" id="trade-subtotal">₹1,24,000</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-family:var(--mono); font-size:11px; color:var(--text3);">PLATFORM FEE (0.3%)</span><span style="font-family:var(--mono); font-size:13px;" id="trade-fee">₹372</span></div>
+            <div style="display:flex; justify-content:space-between; border-top:1px solid var(--border); padding-top:8px;"><span style="font-family:var(--mono); font-size:11px; color:var(--green);">TOTAL</span><span style="font-family:var(--mono); font-size:15px; color:var(--green);" id="trade-total">₹1,24,372</span></div>
+          </div>
+          <button class="btn btn-amber btn-full" id="btn-trade-execute">⚡ EXECUTE TRADE</button>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">// Liquidity Pools</div>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px; background:var(--bg3); border-radius:4px;"><div><div style="font-size:13px;">CCT / INR Pool A</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">Reforestation credits</div></div><div style="text-align:right;"><div style="font-family:var(--mono); font-size:12px; color:var(--green);">₹8.4Cr</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">APY: 12.4%</div></div></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px; background:var(--bg3); border-radius:4px;"><div><div style="font-size:13px;">CCT / INR Pool B</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">Renewable energy credits</div></div><div style="text-align:right;"><div style="font-family:var(--mono); font-size:12px; color:var(--green);">₹6.1Cr</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">APY: 9.8%</div></div></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px; background:var(--bg3); border-radius:4px;"><div><div style="font-size:13px;">CCT-PREM / INR Pool</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">PACT score ≥90 credits</div></div><div style="text-align:right;"><div style="font-family:var(--mono); font-size:12px; color:var(--amber);">₹7.8Cr</div><div style="font-family:var(--mono); font-size:10px; color:var(--text3);">APY: 16.2%</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px;"><div class="card-title">// CCT Price Chart (30D)</div><div class="chart-wrap"><canvas id="chart-price"></canvas></div></div>
+
+        <div class="card"><div class="card-title">// Order Book</div><table><thead><tr><th>Price (₹)</th><th>Amount (CCT)</th><th>Type</th></tr></thead><tbody><tr><td style="color:var(--green); font-family:var(--mono);">1,260</td><td>850</td><td><span class="badge badge-blue">ASK</span></td></tr><tr><td style="color:var(--green); font-family:var(--mono);">1,255</td><td>1,200</td><td><span class="badge badge-blue">ASK</span></td></tr><tr><td style="color:var(--green); font-family:var(--mono);">1,248</td><td>3,400</td><td><span class="badge badge-blue">ASK</span></td></tr><tr style="background:rgba(245,158,11,0.05);"><td style="color:var(--amber); font-family:var(--mono); font-weight:600;">1,240 ← LAST</td><td>2,100</td><td><span class="badge badge-amber">MID</span></td></tr><tr><td style="color:var(--red); font-family:var(--mono);">1,232</td><td>2,800</td><td><span class="badge badge-red">BID</span></td></tr><tr><td style="color:var(--red); font-family:var(--mono);">1,225</td><td>1,500</td><td><span class="badge badge-red">BID</span></td></tr><tr><td style="color:var(--red); font-family:var(--mono);">1,218</td><td>4,200</td><td><span class="badge badge-red">BID</span></td></tr></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECTS -->
+<div class="page" id="page-projects">
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Project Registry</div><div class="section-sub">// All registered carbon projects on the CarbonChain network</div></div>
+      <button class="btn btn-green" id="btn-show-add-project">+ Register Project</button>
+    </div>
+
+    <div id="add-project-form" style="display:none; margin-bottom:24px;">
+      <div class="card">
+        <div class="card-title">// Register New Carbon Project</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;">
+          <div class="form-group"><label class="form-label">Project Name</label><input class="form-input" id="new-proj-name" placeholder="e.g. Kerala Mangrove Restoration"></div>
+          <div class="form-group"><label class="form-label">Project Type</label><select class="form-select" id="new-proj-type"><option>Reforestation</option><option>Renewable Energy</option><option>Soil Carbon</option><option>Methane Capture</option><option>Mangrove</option></select></div>
+          <div class="form-group"><label class="form-label">Location</label><input class="form-input" id="new-proj-loc" placeholder="State, Country"></div>
+          <div class="form-group"><label class="form-label">Area (ha)</label><input class="form-input" id="new-proj-area" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">Claimed tCO₂/yr</label><input class="form-input" id="new-proj-co2" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">Developer Org</label><input class="form-input" id="new-proj-org" placeholder="Organisation name"></div>
+        </div>
+        <div style="display:flex; gap:12px;">
+          <button class="btn btn-green" id="btn-register-project">✓ Register on CarbonChain</button>
+          <button class="btn btn-outline" id="btn-cancel-add-project">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Project</th><th>Type</th><th>Location</th><th>Area</th><th>Claimed tCO₂</th><th>PACT Score</th><th>Tokens Issued</th><th>Status</th></tr>
+        </thead>
+        <tbody id="projects-table">
+          <tr onclick="toast('Sundarbans — 14,200 CCT in circulation')"><td>Sundarbans Mangrove Restoration<div class="mono">PKT-001 | 2021-2041</div></td><td>Mangrove</td><td>West Bengal</td><td>4,500 ha</td><td>18,200</td><td style="color:var(--green); font-family:var(--mono);">91.2</td><td style="color:var(--green); font-family:var(--mono);">14,200</td><td><span class="badge badge-green">ACTIVE</span></td></tr>
+          <tr onclick="toast('Gujarat Wind — 8,900 CCT issued')"><td>Gujarat Offshore Wind Farm<div class="mono">PKT-002 | 2022-2042</div></td><td>Renewable</td><td>Gujarat</td><td>800 MW</td><td>24,000</td><td style="color:var(--green); font-family:var(--mono);">87.4</td><td style="color:var(--green); font-family:var(--mono);">8,900</td><td><span class="badge badge-green">ACTIVE</span></td></tr>
+          <tr onclick="toast('W. Ghats — Under AI evaluation')"><td>Western Ghats Reforestation<div class="mono">PKT-003 | 2023-2043</div></td><td>Reforestation</td><td>Karnataka</td><td>6,200 ha</td><td>12,500</td><td style="color:var(--amber); font-family:var(--mono);">—</td><td style="color:var(--amber); font-family:var(--mono);">0</td><td><span class="badge badge-amber">EVALUATING</span></td></tr>
+          <tr onclick="toast('Bihar Wetlands — Leakage review in progress')"><td>Bihar Wetlands Carbon<div class="mono">PKT-004 | 2023-2033</div></td><td>Soil Carbon</td><td>Bihar</td><td>1,200 ha</td><td>4,200</td><td style="color:var(--amber); font-family:var(--mono);">62.1</td><td style="color:var(--text3); font-family:var(--mono);">0</td><td><span class="badge badge-amber">REVIEW</span></td></tr>
+          <tr onclick="toast('Rajasthan Solar — Rejected. Additionality not proven')"><td>Rajasthan Solar Farm<div class="mono">PKT-005 | 2023-2043</div></td><td>Renewable</td><td>Rajasthan</td><td>320 MW</td><td>8,000</td><td style="color:var(--red); font-family:var(--mono);">34.8</td><td style="color:var(--text3); font-family:var(--mono);">0</td><td><span class="badge badge-red">REJECTED</span></td></tr>
+          <tr onclick="toast('Odisha Mangroves — Recently registered')"><td>Odisha Mangrove Belt<div class="mono">PKT-006 | 2024-2044</div></td><td>Mangrove</td><td>Odisha</td><td>2,800 ha</td><td>9,600</td><td style="color:var(--text3); font-family:var(--mono);">—</td><td style="color:var(--text3); font-family:var(--mono);">0</td><td><span class="badge badge-blue">PENDING</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- AI ADVISOR -->
+<div class="page" id="page-ai-advisor">
+  <div style="padding-top:0; height:calc(100vh - 60px); display:flex; flex-direction:column;">
+    <div style="padding:24px 40px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div class="section-title">AI Carbon Advisor</div>
+        <div class="section-sub">// Powered by Claude — ask anything about carbon markets, credits, PACT methodology</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--green);">
+        <div class="status-dot"></div>
+        CLAUDE CONNECTED
+      </div>
+    </div>
+
+    <div class="chat-msgs" id="chat-msgs">
+      <div class="chat-msg ai">
+        <div class="msg-bubble">👋 Welcome to CarbonChain AI Advisor. I'm powered by Claude and have full context of the CarbonChain system — including PACT methodology, the Indian Carbon Market framework, blockchain architecture, and satellite verification processes.<br><br>Ask me anything: project evaluation, credit quality, market analysis, regulatory compliance, or specific project assessments.</div>
+        <div class="msg-meta">CarbonChain AI · Claude · Just now</div>
+      </div>
+    </div>
+
+    <div class="chat-input-wrap">
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; width:100%;">
+        <button class="btn btn-outline" style="font-size:10px; padding:5px 10px;" data-quick="What is the PACT methodology for carbon credit evaluation?">PACT Methodology</button>
+        <button class="btn btn-outline" style="font-size:10px; padding:5px 10px;" data-quick="Explain additionality in carbon credits">Additionality</button>
+        <button class="btn btn-outline" style="font-size:10px; padding:5px 10px;" data-quick="How does the Indian Carbon Market work?">Indian Carbon Market</button>
+        <button class="btn btn-outline" style="font-size:10px; padding:5px 10px;" data-quick="Why are some carbon credits considered hot-air credits?">Hot-air credits</button>
+        <button class="btn btn-outline" style="font-size:10px; padding:5px 10px;" data-quick="How does satellite data improve carbon credit verification?">Satellite Verification</button>
+      </div>
+      <div style="display:flex; gap:12px; width:100%;">
+        <textarea class="chat-input" id="chat-input" placeholder="Ask about carbon markets, project evaluation, methodology, regulations..." rows="1"></textarea>
+        <button class="btn btn-green" id="btn-chat-send" style="height:44px; padding:0 20px;">SEND</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
