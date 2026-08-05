@@ -1,0 +1,193 @@
+#map, #carbonchain-map {
+  width: 100%;
+  min-height: 520px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4f6f1;
+}
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(320px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.map-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.map-filter-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.map-filter-btn:hover {
+  border-color: var(--border2);
+}
+.map-filter-btn.active {
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.25);
+  color: var(--green);
+}
+.map-container {
+  position: relative;
+  min-height: 520px;
+}
+.map-legend {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  width: auto;
+  background: rgba(8,13,10,0.95);
+  color: var(--text);
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.18);
+  z-index: 300;
+}
+.legend-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 6px;
+}
+.legend-item:last-child { margin-bottom: 0; }
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.map-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.map-sidebar-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.map-project-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.map-project-card:hover {
+  transform: translateY(-1px);
+  background: var(--bg3);
+}
+.map-project-card.highlighted {
+  border-color: rgba(34,197,94,0.4);
+  background: rgba(34,197,94,0.08);
+}
+.map-proj-name {
+  font-family: var(--display);
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.map-proj-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text3);
+  font-size: 12px;
+  margin-top: 10px;
+}
+.map-proj-ndvi {
+  margin-top: 14px;
+}
+.ndvi-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg4);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.ndvi-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #38bdf8);
+  border-radius: 999px;
+}
+.map-weather-card,
+#map-project-list {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+.weather-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.weather-item {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.weather-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.weather-value {
+  font-family: var(--display);
+  font-size: 22px;
+  color: var(--text);
+}
+.popup-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.popup-label { color: var(--text3); }
+.popup-val { font-family: var(--mono); }
+.popup-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  margin-top: 12px;
+}
+.popup-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--green);
+  color: #08140e;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.popup-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.map-overlay { position:absolute; top:10px; right:10px; z-index:400; }

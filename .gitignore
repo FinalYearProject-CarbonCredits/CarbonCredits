@@ -1,0 +1,40 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.env/
+backend/venv/
+frontend/venv/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python packaging
+pip-wheel-metadata/
+*.egg-info/
+
+# Database and generated data
+*.db
+*.sqlite3
+data/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+~*
