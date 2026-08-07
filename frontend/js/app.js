@@ -217,8 +217,20 @@ async function loadWeather() {
 
 //  SATELLITE PAGE — real NDVI from backend
 
-async function loadSatellitePage() {
+/*async function loadSatellitePage() {
   await loadNdviData();
+}*/
+
+async function runSatelliteScan() {
+  toast('Fetching real NDVI from NASA MODIS — this can take 10-20s...');
+  try {
+    const res = await fetch(`${API}/ndvi/refresh`, { method: 'POST' });
+    const data = await res.json();
+    toast(data.message);
+  } catch (e) {
+    toast('MODIS refresh failed — network or NASA endpoint issue');
+  }
+  loadNdviData();
 }
 
 async function loadNdviData() {

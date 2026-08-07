@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
+from utils.fetch_ndvi import fetch_ndvi_for_zones
 
 #  DATABASE SETUP
 
@@ -277,15 +278,20 @@ def seed_database():
     db.add_all(trades)
 
     # 5. Real NDVI zones for Mumbai (NASA MODIS values)
+    ndvi_zone_coords = [
+        {"zone_name": "Sanjay Gandhi National Park", "lat": 19.213, "lon": 72.910},
+        {"zone_name": "Aarey Colony Forest",         "lat": 19.163, "lon": 72.871},
+        {"zone_name": "Thane Creek Mangroves",       "lat": 19.074, "lon": 73.001},
+        {"zone_name": "Borivali Forest Fringe",      "lat": 19.228, "lon": 72.854},
+        {"zone_name": "Powai Lake Greenery",         "lat": 19.127, "lon": 72.906},
+        {"zone_name": "Yeoor Hills Reserve",         "lat": 19.233, "lon": 73.001},
+        {"zone_name": "Ulhas River Wetlands",        "lat": 19.198, "lon": 73.192},
+        {"zone_name": "Versova Mangrove Patch",      "lat": 19.160, "lon": 72.807},
+    ]
+
     ndvi_zones = [
-        NdviRecord(zone_name="Sanjay Gandhi National Park", ndvi_value=0.95, lat=19.213, lon=72.910),
-        NdviRecord(zone_name="Aarey Colony Forest",         ndvi_value=0.93, lat=19.163, lon=72.871),
-        NdviRecord(zone_name="Thane Creek Mangroves",       ndvi_value=0.96, lat=19.074, lon=73.001),
-        NdviRecord(zone_name="Borivali Forest Fringe",      ndvi_value=0.94, lat=19.228, lon=72.854),
-        NdviRecord(zone_name="Powai Lake Greenery",         ndvi_value=0.92, lat=19.127, lon=72.906),
-        NdviRecord(zone_name="Yeoor Hills Reserve",         ndvi_value=0.97, lat=19.233, lon=73.001),
-        NdviRecord(zone_name="Ulhas River Wetlands",        ndvi_value=0.91, lat=19.198, lon=73.192),
-        NdviRecord(zone_name="Versova Mangrove Patch",      ndvi_value=0.95, lat=19.160, lon=72.807),
+        NdviRecord(zone_name=z["zone_name"], ndvi_value=0.0, lat=z["lat"], lon=z["lon"])
+        for z in ndvi_zone_coords
     ]
     db.add_all(ndvi_zones)
 
@@ -542,6 +548,32 @@ def get_mumbai_ndvi(db: Session = Depends(get_db)):
             }
             for z in zones
         ],
+    }
+
+@app.post("/api/ndvi/refresh", tags=["Satellite"])
+def refresh_ndvi(db: Session = Depends(get_db)):
+    """
+    Pulls REAL current NDVI from NASA MODIS for every tracked zone
+    and updates the database. Can be slow (2 live calls per zone)
+    since it hits NASA's servers directly.
+    """
+    zones = db.query(NdviRecord).all()
+    zone_inputs = [{"name": z.zone_name, "lat": z.lat, "lon": z.lon} for z in zones]
+    results = fetch_ndvi_for_zones(zone_inputs)
+
+    updated, failed = 0, 0
+    for z, r in zip(zones, results):
+        if r.get("live"):
+            z.ndvi_value = r["ndvi"]
+            z.recorded_at = datetime.utcnow()
+            updated += 1
+        else:
+            failed += 1
+
+    db.commit()
+    return {
+        "message": f"Refreshed {updated} zones from real MODIS data, {failed} failed",
+        "details": results,
     }
 
 

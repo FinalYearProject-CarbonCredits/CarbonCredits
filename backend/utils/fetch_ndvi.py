@@ -1,34 +1,75 @@
-
 import requests
 
-def fetch_ndvi_mumbai():
-    # Open-Meteo
-    # Returns real vegetation/climate data for Mumbai coordinates
-    url = "https://air-quality-api.open-meteo.com/v1/air-quality"
-    params = {
-        "latitude":  19.076,
-        "longitude": 72.877,
-        "hourly":    "european_aqi",
-        "past_days": 7
-    }
-    res  = requests.get(url, params=params)
-    data = res.json()
+MODIS_BASE = "https://modis.ornl.gov/rst/api/v1/MOD13Q1"
+NDVI_SCALE = 0.0001  # MOD13Q1 scale factor
 
-    # Real NDVI via NASA MODIS
-    ndvi_url = "https://modis.ornl.gov/rst/api/v1/MOD13Q1/subset"
-    ndvi_params = {
-        "latitude":  19.076,
-        "longitude": 72.877,
-        "startDate": "A2024001",
-        "endDate":   "A2024032",
-        "kmAboveBelow": 0,
-        "kmLeftRight":  0
+
+def fetch_modis_ndvi(lat: float, lon: float) -> dict:
+    """
+    Fetch the most recent real NDVI value for a point from NASA's
+    MODIS MOD13Q1 product via the ORNL DAAC web service.
+    No API key required. Returns real satellite-derived NDVI or
+    raises on failure (caller decides on fallback behaviour).
+    """
+    # find the latest available composite date for this point
+    dates_res = requests.get(
+        f"{MODIS_BASE}/dates",
+        params={"latitude": lat, "longitude": lon},
+        timeout=15,
+    )
+    dates_res.raise_for_status()
+    dates = dates_res.json().get("dates", [])
+    if not dates:
+        raise ValueError("No MODIS dates available for this location")
+
+    latest = dates[-1]                 # most recent composite
+    modis_date = latest["modis_date"]  # e.g. "A2024017"
+
+    # pull the actual NDVI pixel for that date
+    subset_res = requests.get(
+        f"{MODIS_BASE}/subset",
+        params={
+            "latitude": lat,
+            "longitude": lon,
+            "startDate": modis_date,
+            "endDate": modis_date,
+            "kmAboveBelow": 0,
+            "kmLeftRight": 0,
+        },
+        timeout=15,
+    )
+    subset_res.raise_for_status()
+    subset = subset_res.json().get("subset", [])
+    if not subset or not subset[0].get("data"):
+        raise ValueError("MODIS subset returned no data")
+
+    raw_value = subset[0]["data"][0]
+    ndvi = round(raw_value * NDVI_SCALE, 3)
+
+    return {
+        "ndvi": ndvi,
+        "calendar_date": subset[0].get("calendar_date"),
+        "modis_date": modis_date,
+        "source": "NASA MODIS MOD13Q1 (real, ORNL DAAC)",
     }
-    ndvi_res = requests.get(ndvi_url, params=ndvi_params)
-    
-    print(" NDVI data fetched")
-    return ndvi_res.json() if ndvi_res.ok else {"ndvi": 0.42, "source": "fallback"}
+
+
+def fetch_ndvi_for_zones(zones: list) -> list:
+    """
+    zones: [{"name": str, "lat": float, "lon": float}, ...]
+    Returns each zone with real NDVI merged in, or an error flag
+    if the live fetch failed for that point.
+    """
+    results = []
+    for z in zones:
+        try:
+            data = fetch_modis_ndvi(z["lat"], z["lon"])
+            results.append({**z, **data, "live": True})
+        except Exception as e:
+            results.append({**z, "ndvi": None, "live": False, "error": str(e)})
+    return results
+
 
 if __name__ == "__main__":
-    data = fetch_ndvi_mumbai()
-    print(data)
+    # quick manual test — Sanjay Gandhi National Park
+    print(fetch_modis_ndvi(19.213, 72.910))
