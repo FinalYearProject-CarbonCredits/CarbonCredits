@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CarbonChain — Admin Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+  <div id="toast"></div>
+  <nav class="portal-nav">
+    <div>
+      <div class="portal-nav-title">Admin Portal</div>
+      <div class="portal-nav-user" id="nav-user"></div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="index.html" class="btn btn-outline">Public Demo</a>
+      <button class="btn btn-outline" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="portal-body">
+    <div class="portal-grid">
+      <div class="card">
+        <div class="card-title">// Pending Land Verification</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Review uploaded documents against map-drawn boundaries. Verify area matches offline.</p>
+        <div id="pending-land">Loading...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">// Pending KYC</div>
+        <div id="pending-kyc">Loading...</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title">// All Users</div>
+      <div id="all-users">Loading...</div>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title">// Lease Inquiries (Company ↔ Landowner)</div>
+      <div id="all-inquiries">Loading...</div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

@@ -191,3 +191,70 @@
 }
 .popup-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .map-overlay { position:absolute; top:10px; right:10px; z-index:400; }
+
+.parcel-toolbar {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.parcel-toolbar-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+.parcel-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.parcel-name-field {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+.parcel-results-card {
+  border-color: rgba(34,197,94,0.25);
+}
+.parcel-results-placeholder {
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 16px 0;
+  text-align: center;
+  line-height: 1.6;
+}
+.parcel-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.parcel-stat-row:last-child { border-bottom: none; }
+.parcel-stat-label { color: var(--text3); font-family: var(--mono); font-size: 10px; }
+.parcel-stat-val { font-family: var(--display); font-size: 18px; color: var(--green); }
+.parcel-stat-val.amber { color: var(--amber); }
+.parcel-stat-val.blue { color: var(--blue); }
+.parcel-disclaimer {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  line-height: 1.5;
+}
+.parcel-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9px;
+  margin-bottom: 10px;
+}

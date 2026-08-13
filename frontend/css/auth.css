@@ -1,0 +1,147 @@
+/* Auth & portal pages */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+}
+.auth-title {
+  font-family: var(--display);
+  font-size: 36px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.auth-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+}
+.auth-demo {
+  margin-top: 20px;
+  padding: 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.8;
+}
+.portal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.portal-nav-title {
+  font-family: var(--display);
+  font-size: 22px;
+  color: var(--green);
+}
+.portal-nav-user {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+.portal-body {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.portal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .portal-grid { grid-template-columns: 1fr; }
+}
+.kyc-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-bottom: 16px;
+}
+.kyc-badge.verified { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.kyc-badge.pending { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+.kyc-badge.not-started { background: rgba(148,163,184,0.15); color: var(--text3); border: 1px solid var(--border); }
+.listing-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.listing-card h3 {
+  font-family: var(--display);
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.result-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text2);
+  white-space: pre-wrap;
+}
+.disclaimer-box {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  margin-top: 16px;
+  line-height: 1.6;
+}
+.readonly-land-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.readonly-stat { font-size: 11px; color: var(--text3); }
+.readonly-stat strong {
+  display: block;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--green);
+  margin-top: 4px;
+}
+.land-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9px;
+  margin-bottom: 8px;
+}
+.land-status.PENDING { background: rgba(245,158,11,0.15); color: var(--amber); }
+.land-status.VERIFIED { background: rgba(34,197,94,0.15); color: var(--green); }
+.land-status.REJECTED { background: rgba(248,113,113,0.15); color: #f87171; }
