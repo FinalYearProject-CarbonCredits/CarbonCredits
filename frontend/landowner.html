@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CarbonChain — Landowner Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/auth.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <link rel="stylesheet" href="css/map.css">
+</head>
+<body>
+  <div id="toast"></div>
+  <nav class="portal-nav">
+    <div>
+      <div class="portal-nav-title">Landowner Portal</div>
+      <div class="portal-nav-user" id="nav-user"></div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="index.html" class="btn btn-outline">Public Demo</a>
+      <button class="btn btn-outline" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="portal-body">
+    <div id="kyc-badge" class="kyc-badge not-started">KYC: Loading...</div>
+
+    <!-- STEP 1: Register land -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">// Step 1 — Register Your Land (Document + Exact Boundary)</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">
+        Trace your <strong>exact land boundary</strong> on the map. Area and coordinates are computed automatically —
+        you cannot enter them manually. Upload your official land document (7/12, sale deed, etc.).
+      </p>
+
+      <div class="portal-grid">
+        <div>
+          <div class="form-group">
+            <label class="form-label">Survey / Gat Number *</label>
+            <input class="form-input" id="survey-number" placeholder="As on land document">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plot / Khasra Number *</label>
+            <input class="form-input" id="plot-number" placeholder="As on land document">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Village *</label>
+            <input class="form-input" id="village" placeholder="e.g. Yeoor">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Taluka *</label>
+            <input class="form-input" id="taluka" placeholder="e.g. Thane">
+          </div>
+          <div class="form-group">
+            <label class="form-label">District *</label>
+            <input class="form-input" id="district" value="Thane" placeholder="e.g. Thane">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Document Type *</label>
+            <select class="form-select" id="document-type">
+              <option value="7_12_extract">7/12 Extract (Saat Baara Utara)</option>
+              <option value="sale_deed">Sale Deed</option>
+              <option value="mutation_entry">Mutation Entry</option>
+              <option value="survey_settlement">Survey Settlement Record</option>
+              <option value="property_card">Property Card</option>
+              <option value="other">Other Official Record</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Area on Document (hectares) *</label>
+            <input class="form-input" id="declared-area" type="number" step="0.01" min="0.01" placeholder="From your land document">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;">
+              Must match your uploaded document. Admin cross-checks against map-drawn area.
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Upload Land Document * (PDF/JPG/PNG, max 10MB)</label>
+            <input class="form-input" id="land-document" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <button class="btn btn-green" id="btn-draw-boundary">✏ Draw Land Boundary</button>
+            <button class="btn btn-outline" id="btn-clear-boundary">Clear Boundary</button>
+          </div>
+          <div id="owner-map" style="height:380px;border-radius:8px;"></div>
+
+          <!-- Read-only computed preview -->
+          <div class="readonly-land-stats" id="boundary-stats">
+            <div class="readonly-stat"><span>Boundary</span><strong id="stat-boundary">Not drawn</strong></div>
+            <div class="readonly-stat"><span>Computed Area</span><strong id="stat-area">—</strong></div>
+            <div class="readonly-stat"><span>Centroid Lat</span><strong id="stat-lat">—</strong></div>
+            <div class="readonly-stat"><span>Centroid Lon</span><strong id="stat-lon">—</strong></div>
+          </div>
+          <p style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:8px;">
+            // Preview values — final area & location locked by server on submission
+          </p>
+        </div>
+      </div>
+
+      <button class="btn btn-amber btn-full" id="btn-register-land" disabled style="margin-top:16px;">
+        Submit Land for Admin Verification
+      </button>
+    </div>
+
+    <!-- My registered land -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">// My Registered Land Parcels</div>
+      <div id="my-land">Loading...</div>
+    </div>
+
+    <!-- KYC -->
+    <div class="portal-grid" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="card-title">// Step 2 — KYC (Offline Verification)</div>
+        <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="kyc-name"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="kyc-phone"></div>
+        <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="kyc-address"></div>
+        <div class="form-group"><label class="form-label">ID Document Reference</label><input class="form-input" id="kyc-id"></div>
+        <button class="btn btn-amber btn-full" id="btn-kyc">Submit KYC</button>
+      </div>
+      <div class="card">
+        <div class="card-title">// Step 3 — Publish for Companies</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Requires verified land + verified KYC. Select a verified parcel — area/location come from your registration.</p>
+        <div class="form-group">
+          <label class="form-label">Verified Land Parcel</label>
+          <select class="form-select" id="listing-parcel-id"><option value="">— Register & verify land first —</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Listing Title</label><input class="form-input" id="list-title" placeholder="Optional — defaults to survey/plot"></div>
+        <div class="form-group"><label class="form-label">Lease Duration (years)</label><input class="form-input" id="list-lease" type="number" value="20" min="1" max="99"></div>
+        <div class="form-group"><label class="form-label">Notes for companies</label><input class="form-input" id="list-notes" placeholder="Access, land type, etc."></div>
+        <button class="btn btn-green btn-full" id="btn-listing">Publish Listing</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">// My Listings</div>
+      <div id="my-listings">Loading...</div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title">// Lease Inquiries from Companies</div>
+      <div id="lease-inquiries">Loading...</div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/landowner.js"></script>
+</body>
+</html>

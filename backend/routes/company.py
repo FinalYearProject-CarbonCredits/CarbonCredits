@@ -1,0 +1,373 @@
+from datetime import datetime
+
+
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from sqlalchemy.orm import Session
+
+
+
+from database import get_db
+
+from models.kyc import KYCRecord
+
+from models.land_listing import LandListing
+
+from models.land_parcel import LandParcel
+
+from models.lease_inquiry import LeaseInquiry
+
+from models.user import User
+
+from schemas.auth import LeaseInquiryCreate
+
+from services.auth import require_roles
+
+
+
+router = APIRouter(prefix="/api/company", tags=["Company"])
+
+
+
+require_company = require_roles("company")
+
+
+
+
+
+@router.get("/available-landowners")
+
+def available_landowners(
+
+    user: User = Depends(require_company),
+
+    db: Session = Depends(get_db),
+
+):
+
+    verified_user_ids = [
+
+        k.user_id
+
+        for k in db.query(KYCRecord).filter(KYCRecord.status == "VERIFIED").all()
+
+    ]
+
+    if not verified_user_ids:
+
+        return {"count": 0, "landowners": [], "note": "No KYC-verified landowners available yet"}
+
+
+
+    listings = (
+
+        db.query(LandListing)
+
+        .filter(
+
+            LandListing.owner_user_id.in_(verified_user_ids),
+
+            LandListing.available == True,
+
+            LandListing.status == "active",
+
+        )
+
+        .order_by(LandListing.created_at.desc())
+
+        .all()
+
+    )
+
+
+
+    results = []
+
+    for listing in listings:
+
+        owner = db.query(User).filter(User.id == listing.owner_user_id).first()
+
+        kyc = db.query(KYCRecord).filter(KYCRecord.user_id == listing.owner_user_id).first()
+
+        parcel = db.query(LandParcel).filter(LandParcel.id == listing.parcel_id).first() if listing.parcel_id else None
+
+        results.append({
+
+            "listing_id": listing.id,
+
+            "owner": {
+
+                "id": owner.id if owner else listing.owner_user_id,
+
+                "full_name": owner.full_name if owner else "Unknown",
+
+                "organization": owner.organization if owner else None,
+
+                "phone": owner.phone if owner else None,
+
+                "kyc_status": kyc.status if kyc else "UNKNOWN",
+
+                "kyc_verified_at": kyc.reviewed_at.isoformat() if kyc and kyc.reviewed_at else None,
+
+            },
+
+            "land": {
+
+                "title": listing.title,
+
+                "location_label": listing.location_label,
+
+                "lat": listing.lat,
+
+                "lon": listing.lon,
+
+                "area_ha": listing.area_ha,
+
+                "survey_number": parcel.survey_number if parcel else None,
+
+                "plot_number": parcel.plot_number if parcel else None,
+
+                "village": parcel.village if parcel else None,
+
+                "land_verified": parcel.verification_status == "VERIFIED" if parcel else False,
+
+            },
+
+            "lease": {
+
+                "duration_years": listing.lease_duration_years,
+
+                "type": listing.lease_type,
+
+            },
+
+            "carbon_potential": {
+
+                "estimated_annual_credits_tco2": listing.estimated_annual_credits_tco2,
+
+                "estimated_total_credits_tco2": listing.estimated_total_credits_tco2,
+
+                "preliminary_only": listing.preliminary_only,
+
+                "disclaimer": "Preliminary net creditable estimate — not verified issued credits",
+
+            },
+
+            "notes": listing.notes,
+
+        })
+
+
+
+    return {"count": len(results), "landowners": results}
+
+
+
+
+
+@router.get("/listings/{listing_id}")
+
+def listing_detail(
+
+    listing_id: int,
+
+    user: User = Depends(require_company),
+
+    db: Session = Depends(get_db),
+
+):
+
+    listing = db.query(LandListing).filter(LandListing.id == listing_id).first()
+
+    if not listing or not listing.available:
+
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+
+
+    kyc = db.query(KYCRecord).filter(KYCRecord.user_id == listing.owner_user_id).first()
+
+    if not kyc or kyc.status != "VERIFIED":
+
+        raise HTTPException(status_code=403, detail="Owner KYC not verified")
+
+
+
+    owner = db.query(User).filter(User.id == listing.owner_user_id).first()
+
+    return {
+
+        "listing_id": listing.id,
+
+        "owner_name": owner.full_name if owner else "Unknown",
+
+        "owner_organization": owner.organization if owner else None,
+
+        "lat": listing.lat,
+
+        "lon": listing.lon,
+
+        "area_ha": listing.area_ha,
+
+        "lease_duration_years": listing.lease_duration_years,
+
+        "lease_type": listing.lease_type,
+
+        "estimated_annual_credits_tco2": listing.estimated_annual_credits_tco2,
+
+        "estimated_total_credits_tco2": listing.estimated_total_credits_tco2,
+
+        "preliminary_only": True,
+
+        "notes": listing.notes,
+
+    }
+
+
+
+
+
+@router.post("/inquiries", status_code=201)
+
+def submit_lease_inquiry(
+
+    body: LeaseInquiryCreate,
+
+    user: User = Depends(require_company),
+
+    db: Session = Depends(get_db),
+
+):
+
+    """Express lease interest in a KYC-verified land listing."""
+
+    listing = db.query(LandListing).filter(
+
+        LandListing.id == body.listing_id,
+
+        LandListing.status == "active",
+
+        LandListing.available == True,
+
+    ).first()
+
+    if not listing:
+
+        raise HTTPException(status_code=404, detail="Listing not found or unavailable")
+
+
+
+    kyc = db.query(KYCRecord).filter(KYCRecord.user_id == listing.owner_user_id).first()
+
+    if not kyc or kyc.status != "VERIFIED":
+
+        raise HTTPException(status_code=403, detail="Landowner KYC not verified")
+
+
+
+    existing = db.query(LeaseInquiry).filter(
+
+        LeaseInquiry.listing_id == body.listing_id,
+
+        LeaseInquiry.company_user_id == user.id,
+
+        LeaseInquiry.status == "SUBMITTED",
+
+    ).first()
+
+    if existing:
+
+        raise HTTPException(status_code=400, detail="You already have a pending inquiry for this listing")
+
+
+
+    inquiry = LeaseInquiry(
+
+        listing_id=body.listing_id,
+
+        company_user_id=user.id,
+
+        message=body.message,
+
+        proposed_lease_years=body.proposed_lease_years,
+
+        status="SUBMITTED",
+
+    )
+
+    db.add(inquiry)
+
+    db.commit()
+
+    db.refresh(inquiry)
+
+
+
+    owner = db.query(User).filter(User.id == listing.owner_user_id).first()
+
+    return {
+
+        "message": "Lease inquiry submitted — landowner will respond offline",
+
+        "inquiry_id": inquiry.id,
+
+        "listing_title": listing.title,
+
+        "landowner": owner.full_name if owner else "Unknown",
+
+        "status": inquiry.status,
+
+    }
+
+
+
+
+
+@router.get("/inquiries")
+
+def my_inquiries(user: User = Depends(require_company), db: Session = Depends(get_db)):
+
+    inquiries = (
+
+        db.query(LeaseInquiry)
+
+        .filter(LeaseInquiry.company_user_id == user.id)
+
+        .order_by(LeaseInquiry.created_at.desc())
+
+        .all()
+
+    )
+
+    results = []
+
+    for inq in inquiries:
+
+        listing = db.query(LandListing).filter(LandListing.id == inq.listing_id).first()
+
+        results.append({
+
+            "id": inq.id,
+
+            "listing_id": inq.listing_id,
+
+            "listing_title": listing.title if listing else None,
+
+            "message": inq.message,
+
+            "proposed_lease_years": inq.proposed_lease_years,
+
+            "status": inq.status,
+
+            "landowner_response": inq.landowner_response,
+
+            "created_at": inq.created_at.isoformat() if inq.created_at else None,
+
+            "responded_at": inq.responded_at.isoformat() if inq.responded_at else None,
+
+        })
+
+    return {"count": len(results), "inquiries": results}
+
+

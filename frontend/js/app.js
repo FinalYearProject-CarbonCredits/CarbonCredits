@@ -1,4 +1,5 @@
-const API = 'http://localhost:8000/api';
+const API = window.API;
+const BACKEND = window.BACKEND || API.replace(/\/api$/, '');
 
 //  NAVIGATION
 
@@ -497,13 +498,46 @@ function updateTradeCalc() {
 function executeTrade() {
   const { amount, price, total } = tradeData;
   if (!amount) { toast('Enter amount to trade'); return; }
-  toast(`${tradeType} order: ${amount.toLocaleString()} CCT @ ₹${price.toLocaleString('en-IN')}/token = ₹${total.toLocaleString('en-IN')} — Order placed on DEX`);
+  fetch(`${API}/trades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trade_type: tradeType, amount_cct: Math.round(amount), price_inr: price }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.id) {
+        toast(`${tradeType} order recorded: ${amount.toLocaleString()} CCT @ ₹${price.toLocaleString('en-IN')}`);
+        loadTrades();
+      } else {
+        toast(data.detail || 'Trade failed');
+      }
+    })
+    .catch(() => {
+      toast(`${tradeType} order: ${amount.toLocaleString()} CCT @ ₹${price.toLocaleString('en-IN')}/token — offline mode`);
+    });
 }
 
 async function loadTrades() {
   const table = document.getElementById('trades-table');
   if (!table) return;
-  toast('Trade history loaded — DEX liquidity: 180,000 CCT');
+  try {
+    const res = await fetch(`${API}/trades`);
+    const trades = await res.json();
+    if (!trades.length) {
+      table.innerHTML = '<tr><td colspan="5" style="color:var(--text3);font-family:var(--mono);font-size:11px;">No trades yet</td></tr>';
+      return;
+    }
+    table.innerHTML = trades.slice(0, 10).map(t => `
+      <tr>
+        <td style="font-family:var(--mono);font-size:11px;">${t.trade_type}</td>
+        <td style="font-family:var(--mono);font-size:11px;">${t.amount_cct?.toLocaleString()}</td>
+        <td style="font-family:var(--mono);font-size:11px;">₹${t.price_inr?.toLocaleString('en-IN')}</td>
+        <td style="font-family:var(--mono);font-size:11px;">₹${t.total_inr?.toLocaleString('en-IN')}</td>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--text3);">${t.created_at ? new Date(t.created_at).toLocaleString() : '—'}</td>
+      </tr>`).join('');
+  } catch {
+    toast('Trade history loaded — DEX liquidity: 180,000 CCT');
+  }
 }
 
 
@@ -919,6 +953,191 @@ async function loadMapPage() {
 
   // Step 5: load live weather
   loadMapWeather();
+
+  // Step 6: enable parcel drawing on map
+  initParcelDrawing();
+}
+
+//  PARCEL DRAWING & AGBD ANALYSIS
+
+let drawControl   = null;
+let drawnLayer    = null;
+let parcelLayer   = null;
+let currentParcel = null;
+let ndviOverlay   = null;
+
+function initParcelDrawing() {
+  if (!carbonMap || drawControl) return;
+
+  drawnLayer = new L.FeatureGroup();
+  carbonMap.addLayer(drawnLayer);
+
+  drawControl = new L.Control.Draw({
+    draw: {
+      polygon: {
+        allowIntersection: false,
+        shapeOptions: { color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 2 },
+      },
+      polyline: false, rectangle: false, circle: false, circlemarker: false, marker: false,
+    },
+    edit: { featureGroup: drawnLayer, remove: true },
+  });
+  carbonMap.addControl(drawControl);
+
+  carbonMap.on(L.Draw.Event.CREATED, e => {
+    drawnLayer.clearLayers();
+    parcelLayer = e.layer;
+    drawnLayer.addLayer(parcelLayer);
+    currentParcel = null;
+    if (ndviOverlay) { carbonMap.removeLayer(ndviOverlay); ndviOverlay = null; }
+    const btn = document.getElementById('btn-analyze-parcel');
+    if (btn) btn.disabled = false;
+    toast('Parcel drawn — click Analyze Biomass');
+  });
+
+  carbonMap.on(L.Draw.Event.DELETED, () => {
+    parcelLayer = null;
+    currentParcel = null;
+    clearParcelResults();
+    const btn = document.getElementById('btn-analyze-parcel');
+    if (btn) btn.disabled = true;
+  });
+}
+
+function getDrawnGeoJSON() {
+  if (!parcelLayer) return null;
+  return parcelLayer.toGeoJSON().geometry;
+}
+
+async function saveAndAnalyzeParcel() {
+  const geometry = getDrawnGeoJSON();
+  if (!geometry) {
+    toast('Draw a parcel polygon on the map first');
+    return;
+  }
+
+  const name = document.getElementById('parcel-name')?.value?.trim() || 'Land Parcel';
+  const btn = document.getElementById('btn-analyze-parcel');
+  const resultsEl = document.getElementById('parcel-results');
+
+  if (btn) { btn.disabled = true; btn.textContent = '⟳ Analyzing...'; }
+  if (resultsEl) {
+    resultsEl.innerHTML = '<div class="parcel-results-placeholder">Running Sentinel-2 + GEDI analysis...</div>';
+  }
+
+  try {
+    let parcelId = currentParcel?.id;
+    let areaHa = currentParcel?.area_ha;
+
+    if (!parcelId) {
+      const createRes = await fetch(`${API}/parcels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, geometry, location_label: 'Mumbai / Thane' }),
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to register parcel');
+      }
+      const createData = await createRes.json();
+      parcelId = createData.parcel.id;
+      areaHa = createData.parcel.area_ha;
+      currentParcel = { id: parcelId, geometry, area_ha: areaHa };
+    }
+
+    const analyzeRes = await fetch(`${API}/parcels/${parcelId}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ carbon_fraction: 0.47 }),
+    });
+    if (!analyzeRes.ok) {
+      const err = await analyzeRes.json().catch(() => ({}));
+      throw new Error(err.detail || 'Analysis failed');
+    }
+
+    const analyzeData = await analyzeRes.json();
+    renderParcelResults(analyzeData.assessment, areaHa);
+    toast(`Analysis ${analyzeData.assessment.status} — ${name}`);
+  } catch (e) {
+    if (resultsEl) {
+      resultsEl.innerHTML = `<div style="color:var(--red);font-family:var(--mono);font-size:12px;padding:16px 0;text-align:center;">${e.message}</div>`;
+    }
+    toast('Analysis failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⟳ Analyze Biomass'; }
+  }
+}
+
+function renderParcelResults(assessment, areaHa) {
+  const el = document.getElementById('parcel-results');
+  const disclaimer = document.getElementById('parcel-disclaimer');
+  if (!el) return;
+
+  const statusColor = assessment.status === 'COMPLETE' ? 'var(--green)' : 'var(--amber)';
+  const carbon = assessment.carbon || {};
+  const agbd = assessment.mean_agbd;
+
+  el.innerHTML = `
+    <span class="parcel-status-badge" style="background:${statusColor}22;border:1px solid ${statusColor}55;color:${statusColor};">${assessment.status}</span>
+    <div class="parcel-stat-row"><span class="parcel-stat-label">AREA</span><span class="parcel-stat-val">${areaHa != null ? Number(areaHa).toFixed(2) : '—'} ha</span></div>
+    ${agbd != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">MEAN AGBD</span><span class="parcel-stat-val">${agbd} Mg/ha</span></div>` : ''}
+    ${assessment.total_biomass_mg != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">TOTAL BIOMASS</span><span class="parcel-stat-val amber">${Number(assessment.total_biomass_mg).toLocaleString()} Mg</span></div>` : ''}
+    ${carbon.carbon_stock_mgc != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">CARBON STOCK</span><span class="parcel-stat-val blue">~${Number(carbon.carbon_stock_mgc).toLocaleString()} Mg C</span></div>` : ''}
+    ${carbon.co2e_tonnes != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">CO₂e (est.)</span><span class="parcel-stat-val">~${Number(carbon.co2e_tonnes).toLocaleString()} tCO₂e</span></div>` : ''}
+    ${assessment.ndvi_mean != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">NDVI (S2)</span><span class="parcel-stat-val" style="font-size:14px;">${assessment.ndvi_mean}</span></div>` : ''}
+    ${assessment.evi_mean != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">EVI (S2)</span><span class="parcel-stat-val" style="font-size:14px;">${assessment.evi_mean}</span></div>` : ''}
+    ${assessment.gedi_footprint_count != null ? `<div class="parcel-stat-row"><span class="parcel-stat-label">GEDI FOOTPRINTS</span><span class="parcel-stat-val" style="font-size:14px;">${assessment.gedi_footprint_count}</span></div>` : ''}
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:10px;">// ${assessment.model_name || 'Model'} v${assessment.model_version || '?'}</div>
+    ${assessment.notes ? `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:8px;line-height:1.5;">${assessment.notes}</div>` : ''}
+  `;
+
+  if (disclaimer) disclaimer.style.display = 'block';
+
+  if (assessment.raster_url && parcelLayer && carbonMap) {
+    if (ndviOverlay) carbonMap.removeLayer(ndviOverlay);
+    ndviOverlay = L.imageOverlay(`${BACKEND}${assessment.raster_url}`, parcelLayer.getBounds(), { opacity: 0.65 });
+    ndviOverlay.addTo(carbonMap);
+  }
+}
+
+function clearParcelResults() {
+  const el = document.getElementById('parcel-results');
+  const disclaimer = document.getElementById('parcel-disclaimer');
+  if (el) el.innerHTML = 'Draw a polygon on the map, then click Analyze Biomass.';
+  if (disclaimer) disclaimer.style.display = 'none';
+  if (ndviOverlay && carbonMap) { carbonMap.removeLayer(ndviOverlay); ndviOverlay = null; }
+}
+
+function clearParcelDrawing() {
+  if (drawnLayer) drawnLayer.clearLayers();
+  parcelLayer = null;
+  currentParcel = null;
+  clearParcelResults();
+  const btn = document.getElementById('btn-analyze-parcel');
+  if (btn) btn.disabled = true;
+}
+
+function resetParcelState() {
+  drawControl = null;
+  drawnLayer = null;
+  parcelLayer = null;
+  currentParcel = null;
+  ndviOverlay = null;
+  clearParcelResults();
+  const btn = document.getElementById('btn-analyze-parcel');
+  if (btn) btn.disabled = true;
+}
+
+function initParcelUI() {
+  document.getElementById('btn-draw-parcel')?.addEventListener('click', () => {
+    if (!carbonMap) { toast('Open the Forest Map tab first'); return; }
+    initParcelDrawing();
+    new L.Draw.Polygon(carbonMap, drawControl.options.draw.polygon).enable();
+    toast('Click map to draw corners — double-click to finish');
+  });
+
+  document.getElementById('btn-clear-parcel')?.addEventListener('click', clearParcelDrawing);
+  document.getElementById('btn-analyze-parcel')?.addEventListener('click', saveAndAnalyzeParcel);
 }
 
 // Wire up map filter buttons 
@@ -929,15 +1148,11 @@ function initMapUI() {
 
   const refreshBtn = document.getElementById('btn-refresh-map');
   if (refreshBtn) refreshBtn.addEventListener('click', () => {
-    // Properly dispose of old map instance
-    if (carbonMap) {
-      carbonMap.remove();
-    }
-    
-    // Reset state
+    if (carbonMap) carbonMap.remove();
     carbonMap = null;
     allMapProjects = [];
     ndviZones = [];
+    resetParcelState();
     document.getElementById('map-project-list').innerHTML = '<div style="color:var(--text3);font-family:var(--mono);font-size:12px;padding:20px 0;text-align:center;">Refreshing...</div>';
     loadMapPage();
   });
@@ -955,7 +1170,7 @@ window.showPage = function(pageId, event) {
 };
 
 // Init map UI buttons on DOM ready
-window.addEventListener('DOMContentLoaded', initMapUI);
+window.addEventListener('DOMContentLoaded', () => { initMapUI(); initParcelUI(); });
 
 //  CARBON FOOTPRINT CALCULATOR
 

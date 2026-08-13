@@ -13,6 +13,7 @@
 
   <!-- Leaflet.js — interactive map -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
   <link rel="stylesheet" href="css/map.css">
 </head>
 
@@ -33,6 +34,7 @@
       <button class="nav-tab" data-page="map">🗺 Forest Map</button>
     </div>
     <div class="nav-status">
+      <a href="login.html" class="btn btn-green" style="font-size:11px;padding:8px 14px;margin-right:12px;">Portal Login</a>
       <div class="status-dot"></div>
       NETWORK LIVE
     </div>
@@ -644,7 +646,7 @@
       <div class="section-head">
         <div>
           <div class="section-title">Forest Map</div>
-          <div class="section-sub">// Real forest & carbon project locations — Mumbai / Thane region</div>
+          <div class="section-sub">// Real forest locations + parcel biomass analysis — Mumbai / Thane</div>
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
           <span class="badge badge-green" id="map-project-count">Loading...</span>
@@ -660,6 +662,20 @@
         <button class="map-filter-btn" data-filter="REVIEW">Under Review</button>
         <button class="map-filter-btn" data-filter="Mangrove">Mangroves</button>
         <button class="map-filter-btn" data-filter="Reforestation">Reforestation</button>
+      </div>
+
+      <!-- Parcel analysis toolbar -->
+      <div class="parcel-toolbar">
+        <div class="parcel-toolbar-title">// Land Parcel Analysis (AGBD)</div>
+        <div class="parcel-toolbar-actions">
+          <button class="btn btn-green" id="btn-draw-parcel">✏ Draw Parcel</button>
+          <button class="btn btn-outline" id="btn-clear-parcel">Clear</button>
+          <button class="btn btn-amber" id="btn-analyze-parcel" disabled>⟳ Analyze Biomass</button>
+        </div>
+        <div class="form-group parcel-name-field">
+          <label class="form-label">Parcel Name</label>
+          <input class="form-input" id="parcel-name" placeholder="e.g. Thane Forest Block A" value="My Land Parcel">
+        </div>
       </div>
 
       <!-- Map + sidebar layout -->
@@ -699,6 +715,17 @@
           <div class="map-weather-card" style="margin-top:12px;">
             <div class="map-sidebar-title">// Region NDVI Summary</div>
             <div id="ndvi-summary" style="color:var(--text3); font-size:12px;">Loading...</div>
+          </div>
+
+          <!-- Parcel biomass results -->
+          <div class="map-weather-card parcel-results-card">
+            <div class="map-sidebar-title">// Parcel Biomass Analysis</div>
+            <div id="parcel-results" class="parcel-results-placeholder">
+              Draw a polygon on the map, then click Analyze Biomass.
+            </div>
+            <div class="parcel-disclaimer" id="parcel-disclaimer" style="display:none;">
+              Satellite/ML estimate — NOT verified carbon credits
+            </div>
           </div>
         </div>
       </div>
@@ -886,6 +913,8 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>
 

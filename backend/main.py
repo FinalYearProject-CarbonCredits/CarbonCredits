@@ -22,6 +22,22 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from utils.fetch_ndvi import fetch_ndvi_for_zones
 
+from database import Base as ParcelBase, engine as parcel_engine, SessionLocal
+from models.land_parcel import LandParcel
+from models.carbon_assessment import CarbonAssessment
+from models.user import User
+from models.kyc import KYCRecord
+from models.land_listing import LandListing
+from models.lease_inquiry import LeaseInquiry
+from routes.parcels import router as parcels_router
+from routes.auth import router as auth_router
+from routes.landowner import router as landowner_router
+from routes.company import router as company_router
+from routes.admin import router as admin_router
+from routes.estimate import router as estimate_router
+from seed_users import seed_users
+from migrate import migrate_schema
+
 #  DATABASE SETUP
 
 DATABASE_URL = "sqlite:///./carbonchain_mumbai.db"
@@ -93,6 +109,7 @@ class NdviRecord(Base):
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
+ParcelBase.metadata.create_all(bind=parcel_engine)
 
 
 #  SEED REAL DATA  (runs once on first startup)
@@ -316,6 +333,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(parcels_router)
+app.include_router(auth_router)
+app.include_router(landowner_router)
+app.include_router(company_router)
+app.include_router(admin_router)
+app.include_router(estimate_router)
 
 
 #  SCHEMAS  (request bodies)
@@ -739,9 +763,15 @@ def get_region_summary(db: Session = Depends(get_db)):
 #  ENTRY POINT
 
 if __name__ == "__main__":
-    seed_database()   # seeds real data on first run, skips if already done
+    migrate_schema()
+    seed_database()
+    seed_users(SessionLocal())
     print("\nStarting CarbonChain API...")
-    print("API Docs  → http://localhost:8000/docs")
-    print("Region    → Mumbai / Thane, Maharashtra")
-    print("Live APIs → Open-Meteo (weather), OpenStreetMap (forests)\n")
+    print("API Docs  -> http://localhost:8000/docs")
+    print("Login     -> http://127.0.0.1:8080/login.html")
+    print("Region    -> Mumbai / Thane, Maharashtra")
+    print("Demo accounts:")
+    print("  admin@carbonchain.in / admin123")
+    print("  landowner@example.com / user123")
+    print("  company@example.com / company123\n")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
