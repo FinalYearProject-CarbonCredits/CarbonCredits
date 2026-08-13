@@ -1,0 +1,273 @@
+# CarbonChain — Project Context
+
+> **Purpose:** Mumbai / Thane carbon credit marketplace demo with real satellite data where available, role-based portals, and a landowner → verification → listing → company workflow.
+
+**Repo:** https://github.com/FinalYearProject-CarbonCredits/CarbonCredits  
+**Last major update:** Role-based portals, carbon pipeline, lease inquiries (commit `1200bd9`)
+
+---
+
+## How to Run
+
+Two terminals are required — **different folders, different commands**:
+
+| | Backend | Frontend |
+|---|---------|----------|
+| **Folder** | `backend/` | `frontend/` |
+| **Command** | `python main.py` | `python -m http.server 8080 --bind 127.0.0.1` |
+| **URL** | http://127.0.0.1:8000/docs | http://127.0.0.1:8080/login.html |
+
+**Demo logins:**
+
+| Role | Email | Password | Portal |
+|------|-------|----------|--------|
+| Admin | admin@carbonchain.in | admin123 | `/admin.html` |
+| Landowner | landowner@example.com | user123 | `/landowner.html` |
+| Company | company@example.com | company123 | `/company.html` |
+
+---
+
+## What Is Added (Implemented)
+
+### 1. Public demo (`frontend/index.html`)
+
+- Dashboard with project map (Mumbai / Thane forests from OSM seed)
+- Live weather ticker (Open-Meteo)
+- MODIS NDVI refresh endpoint
+- Forest Map tab with parcel draw + biomass analysis (`POST /api/parcels`)
+- Calculator, blockchain, and trading tabs (**partially simulated UI**)
+- Trade execute wired to `POST /api/trades` (records in SQLite)
+
+### 2. Authentication & roles
+
+| File / area | What |
+|-------------|------|
+| `backend/routes/auth.py` | Register, login, JWT token, `/me` |
+| `backend/services/auth.py` | bcrypt passwords, JWT, role guards |
+| `backend/models/user.py` | Users: admin, landowner, company |
+| `frontend/login.html` | Portal login |
+| `frontend/js/auth.js`, `config.js` | Session, API base URL, role routing |
+
+### 3. Landowner portal
+
+| Feature | Backend | Frontend |
+|---------|---------|----------|
+| Draw boundary + upload deed | `POST /api/landowner/land/register` | `landowner.html` + map draw |
+| Server-computed area/centroid | `services/geometry.py` | No manual lat/lon entry |
+| My parcels | `GET /api/landowner/land` | Parcel list + analyze button |
+| Carbon analysis | `POST /api/landowner/land/{id}/analyze` | NDVI, AGBD, credit potential |
+| KYC submit | `POST /api/landowner/kyc/submit` | KYC form |
+| Publish listing | `POST /api/landowner/listings` | Requires verified land + KYC |
+| Lease inquiry inbox | `GET/PATCH /api/landowner/inquiries` | Accept / decline companies |
+
+### 4. Company portal
+
+| Feature | Backend | Frontend |
+|---------|---------|----------|
+| Browse verified landowners | `GET /api/company/available-landowners` | Cards + map |
+| Listing detail | `GET /api/company/listings/{id}` | — |
+| Express lease interest | `POST /api/company/inquiries` | Inquiry button + history |
+
+### 5. Admin portal
+
+| Feature | Backend | Frontend |
+|---------|---------|----------|
+| Pending land verification | `GET/PATCH /api/admin/land/*` | Document download + verify/reject |
+| Pending KYC | `GET/PATCH /api/admin/kyc/*` | Verify / reject |
+| All users | `GET /api/admin/users` | User list |
+| Lease inquiries monitor | `GET /api/admin/inquiries` | Inquiry queue |
+
+### 6. Carbon / biomass pipeline
+
+| Service | Role |
+|---------|------|
+| `services/sentinel.py` | Sentinel-2 L2A via Element84 STAC |
+| `services/gedi.py` | GEDI L4A footprint queries |
+| `services/biomass.py` | Orchestrates NDVI + GEDI + AGBD-Lite |
+| `services/agbd_lite.py` | NDVI → biomass when GEDI unavailable |
+| `services/carbon.py` | Biomass → carbon stock → CO₂e |
+| `services/credit_potential.py` | Preliminary credit range by land type |
+| `services/baseline.py` | Baseline, additionality, leakage, buffer |
+| `services/historical.py` | ~12-month NDVI change screening |
+| `services/land_registration.py` | GeoJSON validation, document upload |
+
+**Public parcel API** (Forest Map tab): `backend/routes/parcels.py`  
+**Deprecated:** `POST /api/estimate/point` → 410 Gone (free lat/lon entry removed)
+
+### 7. Database models
+
+| Model | Table | Purpose |
+|-------|-------|---------|
+| `User` | users | Auth + roles |
+| `KYCRecord` | kyc_records | Offline KYC workflow |
+| `LandParcel` | land_parcels | Drawn boundary + document metadata |
+| `CarbonAssessment` | carbon_assessments | Analysis results per parcel |
+| `LandListing` | land_listings | Published land for companies |
+| `LeaseInquiry` | lease_inquiries | Company ↔ landowner interest |
+| Legacy | projects, credits, trades, ndvi_records | Public demo dashboard |
+
+**Storage:** SQLite at `backend/carbonchain_mumbai.db` (gitignored)  
+**Documents:** `backend/data/documents/` (gitignored)  
+**NDVI rasters:** `backend/data/rasters/` (gitignored)
+
+### 8. Seed & migration
+
+- `seed_users.py` — demo admin, landowner, company + sample KYC/listings
+- `migrate.py` — lightweight SQLite column migrations
+- `scripts/validate_gedi.py` — GEDI coverage sanity check
+
+### 9. Data honesty labels
+
+All portal carbon figures are labelled **PRELIMINARY** — not verified registry credits. Disclaimers are returned in API responses.
+
+---
+
+## What Is Real vs Static (Demo)
+
+### Real (live API or server-computed)
+
+- Weather → Open-Meteo
+- Regional NDVI refresh → NASA MODIS
+- Sentinel-2 NDVI/EVI → real L2A COG bands
+- GEDI AGBD → when footprints exist in parcel (often sparse in urban Mumbai)
+- AGBD-Lite → NDVI regression fallback (screening only)
+- Land area / centroid → geodesic from drawn polygon
+- Auth, KYC, listings, inquiries → SQLite
+- Dashboard project counts → aggregated from DB
+
+### Static / simulated (demo UI only)
+
+- Hero stats (14.2M tCO₂, ₹847Cr, etc.) → hardcoded HTML
+- Chart time series → random `genData()` in `app.js`
+- Live activity feed → rotating fake messages
+- Blockchain visual chain → simulated (mint partially writes DB)
+- Order book / DEX liquidity → static HTML
+- CCT price ₹1,240 → hardcoded default
+- Project `claimed_co2` → `area × 3.2` heuristic in seed
+- PACT evaluation on some projects → demo scores
+
+---
+
+## What Is Yet to Be Added (Not Implemented)
+
+### High priority (product gaps)
+
+| Item | Current state | Target |
+|------|---------------|--------|
+| **Verified carbon credit issuance** | Preliminary estimates only | Registry integration (Verra / Gold Standard), third-party verification |
+| **Full AGBD-Lite ML model** | Simple NDVI power-law regression | Trained model on GEDI + Sentinel features |
+| **Digital lease signing** | Inquiry accept/decline only | Contract PDF, e-sign, payment |
+| **Company ↔ landowner messaging** | One-shot inquiry message | Threaded chat or email notifications |
+| **Production auth** | Hardcoded JWT secret | Env-based secret, HTTPS, refresh tokens |
+| **Production database** | SQLite | PostgreSQL + backups |
+
+### MRV & methodology (carbon science)
+
+| Item | Status |
+|------|--------|
+| Historical carbon stock change (biomass time series) | NDVI trend only (~12 mo) |
+| Formal baseline scenario modelling | Heuristic BAU rates in `baseline.py` |
+| Additionality proof (documented) | Screening score only |
+| Leakage quantification | Fixed 10% deduction |
+| Buffer pool | Fixed 15% deduction |
+| Methodology selection workflow | Mentioned in API `next_steps` only |
+| Field plot validation | Not built |
+
+### Frontend / UX gaps
+
+| Item | Status |
+|------|--------|
+| Wire all trading UI to backend | Execute trade done; order book still static |
+| Real blockchain integration | Simulated UI only |
+| Mobile-responsive portal polish | Basic layout only |
+| Email alerts (KYC approved, inquiry received) | Not built |
+| Admin dashboard analytics | Lists only, no charts |
+
+### Backend / DevOps gaps
+
+| Item | Status |
+|------|--------|
+| Automated tests | None |
+| CI/CD pipeline | None |
+| Docker / deployment config | None |
+| Rate limiting & API keys | None |
+| File storage (S3) for documents | Local filesystem only |
+| GEDI HDF5 direct parse | CMR/vector fallback only; often 0 footprints |
+
+### Removed / intentionally blocked
+
+| Item | Reason |
+|------|--------|
+| `POST /api/estimate/point` | Returns 410 — prevents manual lat/lon bypass of map draw |
+| Manual land area entry for analysis | Server computes from polygon only |
+
+---
+
+## End-to-End Workflow (Current)
+
+```
+Landowner                    Admin                      Company
+    │                          │                           │
+    ├─ Draw boundary + doc ──►│ Verify land offline       │
+    ├─ Analyze carbon ─────────┤                           │
+    ├─ Submit KYC ────────────►│ Verify KYC offline        │
+    ├─ Publish listing ────────┤                           │
+    │                          │                           ├─ Browse listings
+    │◄──── Lease inquiry ──────┼───────────────────────────┤
+    ├─ Accept / decline ───────┤                           │
+    │                          ├─ Monitor inquiries         │
+```
+
+**Blockers for listing:** land `VERIFIED` + KYC `VERIFIED`  
+**Blockers for company view:** owner KYC `VERIFIED` + listing `active`
+
+---
+
+## Key File Map
+
+```
+CarbonCredits/
+├── PROJECT_CONTEXT.md          ← this file
+├── README.md                   ← run instructions
+├── backend/
+│   ├── main.py                 ← legacy APIs + app entry
+│   ├── database.py             ← SQLAlchemy engine
+│   ├── migrate.py              ← schema migrations
+│   ├── seed_users.py           ← demo accounts
+│   ├── models/                 ← DB models
+│   ├── routes/                 ← API routers
+│   ├── services/               ← business + satellite logic
+│   └── scripts/validate_gedi.py
+└── frontend/
+    ├── index.html              ← public demo
+    ├── login.html              ← portal entry
+    ├── landowner.html
+    ├── company.html
+    ├── admin.html
+    └── js/
+        ├── config.js           ← API URL (window.API)
+        ├── auth.js             ← JWT session helpers
+        ├── app.js              ← public demo logic
+        ├── landowner.js
+        ├── company.js
+        └── admin.js
+```
+
+---
+
+## Suggested Next Steps (for final-year delivery)
+
+1. **Document methodology choice** (e.g. AR-ACM0003) and map pipeline outputs to MRV requirements.
+2. **Replace AGBD-Lite regression** with a trained model or cite validation against GEDI plots.
+3. **Add email notification stub** when admin verifies KYC or landowner accepts inquiry.
+4. **PostgreSQL migration** if deploying beyond local demo.
+5. **Add pytest** for auth, land registration geometry, and credit_potential math.
+6. **Clean public demo UI** — label simulated tabs clearly or wire trading to full backend.
+
+---
+
+## GitHub Notes
+
+- Pushed to `main` on https://github.com/FinalYearProject-CarbonCredits/CarbonCredits
+- **Not committed** (`.gitignore`): `*.db`, `__pycache__/`, `backend/data/`, `.env`
+- After clone: `pip install -r backend/requirements.txt`, run both servers, DB seeds on first `python main.py`
