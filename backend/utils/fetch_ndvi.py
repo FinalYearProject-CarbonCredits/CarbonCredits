@@ -8,10 +8,7 @@ def fetch_modis_ndvi(lat: float, lon: float) -> dict:
     """
     Fetch the most recent real NDVI value for a point from NASA's
     MODIS MOD13Q1 product via the ORNL DAAC web service.
-    No API key required. Returns real satellite-derived NDVI or
-    raises on failure (caller decides on fallback behaviour).
     """
-    # find the latest available composite date for this point
     dates_res = requests.get(
         f"{MODIS_BASE}/dates",
         params={"latitude": lat, "longitude": lon},
@@ -22,10 +19,9 @@ def fetch_modis_ndvi(lat: float, lon: float) -> dict:
     if not dates:
         raise ValueError("No MODIS dates available for this location")
 
-    latest = dates[-1]                 # most recent composite
-    modis_date = latest["modis_date"]  # e.g. "A2024017"
+    latest = dates[-1]
+    modis_date = latest["modis_date"]
 
-    # pull the actual NDVI pixel for that date
     subset_res = requests.get(
         f"{MODIS_BASE}/subset",
         params={
@@ -40,15 +36,27 @@ def fetch_modis_ndvi(lat: float, lon: float) -> dict:
     )
     subset_res.raise_for_status()
     subset = subset_res.json().get("subset", [])
-    if not subset or not subset[0].get("data"):
-        raise ValueError("MODIS subset returned no data")
 
-    raw_value = subset[0]["data"][0]
+    # Find the NDVI band specifically — the response contains EVI,
+    # reflectance, quality flags, and angle bands too, all mixed together.
+    ndvi_entry = next(
+        (entry for entry in subset if entry.get("band") == "250m_16_days_NDVI"),
+        None,
+    )
+    if not ndvi_entry or not ndvi_entry.get("data"):
+        raise ValueError("NDVI band not found in MODIS response")
+
+    raw_value = ndvi_entry["data"][0]
+
+    # MOD13Q1 fill value is -3000; valid range is -2000 to 10000
+    if raw_value <= -2000:
+        raise ValueError("MODIS returned a fill/no-data pixel (likely cloud cover)")
+
     ndvi = round(raw_value * NDVI_SCALE, 3)
 
     return {
         "ndvi": ndvi,
-        "calendar_date": subset[0].get("calendar_date"),
+        "calendar_date": ndvi_entry.get("calendar_date"),
         "modis_date": modis_date,
         "source": "NASA MODIS MOD13Q1 (real, ORNL DAAC)",
     }
