@@ -11,7 +11,10 @@ from models.land_listing import LandListing
 from models.lease_inquiry import LeaseInquiry
 from models.land_parcel import LandParcel
 from models.user import User
+from models.lease_contract import LeaseContract
+from models.inquiry_message import InquiryMessage
 from schemas.auth import KYCReview, LandVerificationReview
+from services.contract_service import contract_to_dict
 from services.auth import require_roles
 from services.land_registration import DOCS_DIR, parcel_to_dict
 
@@ -199,3 +202,37 @@ def all_lease_inquiries(admin: User = Depends(require_admin), db: Session = Depe
             "responded_at": inq.responded_at.isoformat() if inq.responded_at else None,
         })
     return {"count": len(results), "inquiries": results}
+
+
+@router.get("/contracts")
+def all_contracts(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    contracts = db.query(LeaseContract).order_by(LeaseContract.created_at.desc()).all()
+    return {"count": len(contracts), "contracts": [contract_to_dict(c, db) for c in contracts]}
+
+
+@router.get("/inquiries/{inquiry_id}/messages")
+def inquiry_messages_admin(
+    inquiry_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    messages = (
+        db.query(InquiryMessage)
+        .filter(InquiryMessage.inquiry_id == inquiry_id)
+        .order_by(InquiryMessage.created_at.asc())
+        .all()
+    )
+    return {
+        "inquiry_id": inquiry_id,
+        "count": len(messages),
+        "messages": [
+            {
+                "id": m.id,
+                "sender_user_id": m.sender_user_id,
+                "sender_role": m.sender_role,
+                "body": m.body,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }

@@ -1,11 +1,23 @@
 #  CarbonChain Backend — Mumbai / Thane Region
-#  FastAPI + SQLite + Real Open Data
+#  FastAPI + SQLAlchemy + Real Open Data
 
 #  HOW TO RUN:
-#    pip install fastapi uvicorn sqlalchemy requests python-multipart
+#    pip install -r requirements.txt
 #    python main.py          ← seeds DB + starts server
 #    open http://localhost:8000/docs
 
+
+import os
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before any os.getenv calls
 
 import json
 import random
@@ -14,21 +26,28 @@ import uvicorn
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import Column, DateTime, Float, Integer, String, func
+from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 from utils.fetch_ndvi import fetch_ndvi_for_zones
 
-from database import Base as ParcelBase, engine as parcel_engine, SessionLocal
+# ── Canonical database setup from database.py ──
+# All models (including legacy demo ones below) use this single engine.
+# Set DATABASE_URL in .env to switch between SQLite and PostgreSQL.
+from database import Base, engine, SessionLocal, get_db, database_info
 from models.land_parcel import LandParcel
 from models.carbon_assessment import CarbonAssessment
 from models.user import User
 from models.kyc import KYCRecord
 from models.land_listing import LandListing
 from models.lease_inquiry import LeaseInquiry
+from models.lease_contract import LeaseContract
+from models.inquiry_message import InquiryMessage
+from models.refresh_token import RefreshToken
 from routes.parcels import router as parcels_router
 from routes.auth import router as auth_router
 from routes.landowner import router as landowner_router
@@ -38,27 +57,14 @@ from routes.estimate import router as estimate_router
 from seed_users import seed_users
 from migrate import migrate_schema
 
-#  DATABASE SETUP
-
-DATABASE_URL = "sqlite:///./carbonchain_mumbai.db"
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+ENV = os.getenv("CARBONCHAIN_ENV", "development")
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-#  DB Tables
+#  DB Tables (legacy demo — now share the canonical Base from database.py)
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = {'extend_existing': True}
 
     id            = Column(Integer, primary_key=True, index=True)
     name          = Column(String)
@@ -77,6 +83,7 @@ class Project(Base):
 
 class Credit(Base):
     __tablename__ = "credits"
+    __table_args__ = {'extend_existing': True}
 
     id         = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer)
@@ -87,6 +94,7 @@ class Credit(Base):
 
 class Trade(Base):
     __tablename__ = "trades"
+    __table_args__ = {'extend_existing': True}
 
     id         = Column(Integer, primary_key=True, index=True)
     trade_type = Column(String)
@@ -98,6 +106,7 @@ class Trade(Base):
 
 class NdviRecord(Base):
     __tablename__ = "ndvi_records"
+    __table_args__ = {'extend_existing': True}
 
     id         = Column(Integer, primary_key=True, index=True)
     zone_name  = Column(String)
@@ -107,16 +116,15 @@ class NdviRecord(Base):
     recorded_at = Column(DateTime, default=datetime.utcnow)
 
 
-# Create all tables
+# Create all tables (single engine — respects DATABASE_URL)
 Base.metadata.create_all(bind=engine)
-ParcelBase.metadata.create_all(bind=parcel_engine)
 
 
 #  SEED REAL DATA  (runs once on first startup)
 
 def fetch_real_forests_from_osm() -> list:
     """Fetch actual forest/park polygons in Mumbai+Thane from OpenStreetMap."""
-    print("🛰  Fetching real forest data from OpenStreetMap...")
+    print("[OSM] Fetching real forest data from OpenStreetMap...")
     query = """
     [out:json][timeout:60];
     (
@@ -148,10 +156,10 @@ def fetch_real_forests_from_osm() -> list:
                 "lat":      center.get("lat", 19.076),
                 "lon":      center.get("lon", 72.877),
             })
-        print(f"✅ OSM returned {len(forests)} named forest/park areas")
+        print(f"[OSM] Returned {len(forests)} named forest/park areas")
         return forests[:8]   # keep top 8 for demo clarity
     except Exception as e:
-        print(f"⚠️  OSM fetch failed ({e}), using curated fallback data")
+        print(f"[OSM] Fetch failed ({e}), using curated fallback data")
         return []
 
 
@@ -159,11 +167,11 @@ def seed_database():
     db = SessionLocal()
 
     if db.query(Project).count() > 0:
-        print("✅ Database already seeded — skipping")
+        print("[DB] Database already seeded - skipping")
         db.close()
         return
 
-    print("🌱 Seeding database with real Mumbai/Thane data...")
+    print("[DB] Seeding database with real Mumbai/Thane data...")
 
     # 1. Verified real projects (Verra / Maharashtra forest dept)
     real_projects = [
@@ -324,12 +332,36 @@ app = FastAPI(
     title="CarbonChain API — Mumbai/Thane Region",
     description="Real carbon credit data for Mumbai & Thane using OpenStreetMap, "
                 "NASA MODIS NDVI, and Open-Meteo weather APIs.",
-    version="1.0.0",
+    version="2.0.0",
 )
+
+
+# ── HTTPS redirect middleware (production only) ──
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    """Redirect HTTP → HTTPS when running in production behind a reverse proxy."""
+    async def dispatch(self, request: Request, call_next):
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        if proto == "http" and request.url.path not in ("/", "/health"):
+            url = request.url.replace(scheme="https")
+            return RedirectResponse(url=str(url), status_code=301)
+        return await call_next(request)
+
+
+if ENV == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+
+# ── CORS — permissive in dev, locked down in production ──
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
+if ENV == "production" and _allowed_origins:
+    _origins = [o.strip() for o in _allowed_origins.split(",") if o.strip()]
+else:
+    _origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=_origins,
+    allow_credentials=ENV == "production",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -378,7 +410,9 @@ def root():
         "status":  "CarbonChain API is running",
         "region":  "Mumbai / Thane, Maharashtra",
         "docs":    "http://localhost:8000/docs",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "environment": ENV,
+        "database": database_info(),
     }
 
 
@@ -763,15 +797,22 @@ def get_region_summary(db: Session = Depends(get_db)):
 #  ENTRY POINT
 
 if __name__ == "__main__":
+    db_info = database_info()
+    print(f"\n[DB] Using {db_info['driver']} — {db_info['url_masked']}")
     migrate_schema()
     seed_database()
     seed_users(SessionLocal())
-    print("\nStarting CarbonChain API...")
+    print(f"\nStarting CarbonChain API ({ENV} mode)...")
     print("API Docs  -> http://localhost:8000/docs")
     print("Login     -> http://127.0.0.1:8080/login.html")
     print("Region    -> Mumbai / Thane, Maharashtra")
-    print("Demo accounts:")
-    print("  admin@carbonchain.in / admin123")
-    print("  landowner@example.com / user123")
-    print("  company@example.com / company123\n")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    if ENV != "production":
+        print("Demo accounts:")
+        print("  admin@carbonchain.in / admin123")
+        print("  landowner@example.com / user123")
+        print("  company@example.com / company123")
+    else:
+        print("HTTPS redirect: ENABLED")
+        print(f"CORS origins: {_origins}")
+    print()
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=(ENV != "production"))

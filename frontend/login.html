@@ -132,7 +132,7 @@
 
         if (!res.ok) throw new Error(apiErrorMessage(data, 'Login failed'));
 
-        saveSession(data.access_token, { role: data.role, full_name: data.full_name, user_id: data.user_id, email });
+        saveSession(data.access_token, { role: data.role, full_name: data.full_name, user_id: data.user_id, email }, data.refresh_token);
 
         status.textContent = 'Success — redirecting...';
 

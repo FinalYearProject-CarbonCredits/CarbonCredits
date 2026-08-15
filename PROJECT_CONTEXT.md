@@ -3,7 +3,7 @@
 > **Purpose:** Mumbai / Thane carbon credit marketplace demo with real satellite data where available, role-based portals, and a landowner → verification → listing → company workflow.
 
 **Repo:** https://github.com/FinalYearProject-CarbonCredits/CarbonCredits  
-**Last major update:** Role-based portals, carbon pipeline, lease inquiries (commit `1200bd9`)
+**Last major update:** Digital lease signing, messaging, production auth/DB (commit TBD)
 
 ---
 
@@ -42,11 +42,12 @@ Two terminals are required — **different folders, different commands**:
 
 | File / area | What |
 |-------------|------|
-| `backend/routes/auth.py` | Register, login, JWT token, `/me` |
-| `backend/services/auth.py` | bcrypt passwords, JWT, role guards |
+| `backend/routes/auth.py` | Register, login, JWT token, `/me`, refresh, logout |
+| `backend/services/auth.py` | bcrypt passwords, JWT, env-based secret, refresh tokens, role guards |
 | `backend/models/user.py` | Users: admin, landowner, company |
+| `backend/models/refresh_token.py` | Refresh token storage (hashed, revocable) |
 | `frontend/login.html` | Portal login |
-| `frontend/js/auth.js`, `config.js` | Session, API base URL, role routing |
+| `frontend/js/auth.js`, `config.js` | Session, API base URL, role routing, auto-refresh on 401 |
 
 ### 3. Landowner portal
 
@@ -59,6 +60,8 @@ Two terminals are required — **different folders, different commands**:
 | KYC submit | `POST /api/landowner/kyc/submit` | KYC form |
 | Publish listing | `POST /api/landowner/listings` | Requires verified land + KYC |
 | Lease inquiry inbox | `GET/PATCH /api/landowner/inquiries` | Accept / decline companies |
+| Threaded messaging | `GET/POST /api/landowner/inquiries/{id}/messages` | Chat UI with auto-refresh polling |
+| Lease contracts | `GET /api/landowner/contracts`, `POST .../sign` | Sign + download PDF |
 
 ### 4. Company portal
 
@@ -67,6 +70,8 @@ Two terminals are required — **different folders, different commands**:
 | Browse verified landowners | `GET /api/company/available-landowners` | Cards + map |
 | Listing detail | `GET /api/company/listings/{id}` | — |
 | Express lease interest | `POST /api/company/inquiries` | Inquiry button + history |
+| Threaded messaging | `GET/POST /api/company/inquiries/{id}/messages` | Chat UI with auto-refresh polling |
+| Lease contracts | `GET /api/company/contracts`, `POST .../sign`, `POST .../pay` | Sign + pay + download PDF |
 
 ### 5. Admin portal
 
@@ -104,21 +109,71 @@ Two terminals are required — **different folders, different commands**:
 | `CarbonAssessment` | carbon_assessments | Analysis results per parcel |
 | `LandListing` | land_listings | Published land for companies |
 | `LeaseInquiry` | lease_inquiries | Company ↔ landowner interest |
+| `LeaseContract` | lease_contracts | Contract PDF, e-sign, payment tracking |
+| `InquiryMessage` | inquiry_messages | Threaded chat messages |
+| `RefreshToken` | refresh_tokens | JWT refresh token rotation |
 | Legacy | projects, credits, trades, ndvi_records | Public demo dashboard |
 
-**Storage:** SQLite at `backend/carbonchain_mumbai.db` (gitignored)  
+**Storage:** SQLite (default) or PostgreSQL via `DATABASE_URL` env var  
+**Database file:** `backend/carbonchain_mumbai.db` (gitignored, SQLite only)  
 **Documents:** `backend/data/documents/` (gitignored)  
-**NDVI rasters:** `backend/data/rasters/` (gitignored)
+**Contracts:** `backend/data/contracts/` (gitignored)  
+**NDVI rasters:** `backend/data/rasters/` (gitignored)  
+**Backups:** `backend/data/backups/` (gitignored, PostgreSQL only)
 
 ### 8. Seed & migration
 
 - `seed_users.py` — demo admin, landowner, company + sample KYC/listings
-- `migrate.py` — lightweight SQLite column migrations
+- `migrate.py` — lightweight SQLite/PG column migrations
 - `scripts/validate_gedi.py` — GEDI coverage sanity check
+- `scripts/backup_db.py` — PostgreSQL backup with pg_dump + retention
 
 ### 9. Data honesty labels
 
 All portal carbon figures are labelled **PRELIMINARY** — not verified registry credits. Disclaimers are returned in API responses.
+
+### 10. Digital lease signing
+
+| Component | Details |
+|-----------|--------|
+| Contract creation | Auto-generated `DRAFT` when landowner accepts inquiry (`services/contract_service.py`) |
+| PDF generation | Full contract PDF via `reportlab` (parties, land, terms, signatures, payment status) |
+| E-sign | Both parties type full name to digitally sign (`POST .../contracts/{id}/sign`) |
+| Status flow | `DRAFT` → `PARTIALLY_SIGNED` → `SIGNED` → `COMPLETED` |
+| Payment recording | Company records UPI/NEFT/cheque ref (`POST .../contracts/{id}/pay`) |
+| PDF download | Updated after each sign/pay action (`GET .../contracts/{id}/pdf`) |
+| UI | Contract cards in both portals with sign button, payment button, PDF download link |
+
+### 11. Company ↔ landowner messaging
+
+| Component | Details |
+|-----------|--------|
+| Model | `InquiryMessage` — linked to inquiry, tracks sender role |
+| API | `GET/POST /api/{landowner,company}/inquiries/{id}/messages` |
+| Chat UI | Threaded chat panel (toggle on inquiry card), auto-refresh every 10 seconds |
+| Access control | Both parties can message on `SUBMITTED` or `ACCEPTED` inquiries |
+
+### 12. Production auth
+
+| Component | Details |
+|-----------|--------|
+| Secret | `CARBONCHAIN_SECRET` from env; crashes on startup if weak/missing in production |
+| Refresh tokens | SHA-256 hashed, stored in DB, 7-day expiry, automatic rotation on use |
+| Frontend auto-refresh | `apiFetch()` intercepts 401, transparently refreshes token, retries request |
+| Logout | Revokes refresh token server-side; `revoke_all_user_tokens()` available |
+| HTTPS redirect | Middleware activates when `CARBONCHAIN_ENV=production` (checks `X-Forwarded-Proto`) |
+| CORS | `ALLOWED_ORIGINS` env var for production origin whitelist |
+
+### 13. Production database
+
+| Component | Details |
+|-----------|--------|
+| Dual support | `database.py` reads `DATABASE_URL` — defaults to SQLite, supports PostgreSQL |
+| Pool settings | PostgreSQL: `pool_size=10`, `max_overflow=20`, `pool_recycle=1800`, `pool_pre_ping=True` |
+| Migrations | `migrate.py` handles PG-specific types (`TIMESTAMP` vs `DATETIME`) |
+| Backup | `scripts/backup_db.py` — `pg_dump` with timestamped files and configurable retention |
+| Dependencies | `psycopg2-binary` in `requirements.txt` |
+| Unified engine | All models (including legacy demo) now share the canonical `database.py` engine |
 
 ---
 
@@ -156,10 +211,8 @@ All portal carbon figures are labelled **PRELIMINARY** — not verified registry
 |------|---------------|--------|
 | **Verified carbon credit issuance** | Preliminary estimates only | Registry integration (Verra / Gold Standard), third-party verification |
 | **Full AGBD-Lite ML model** | Simple NDVI power-law regression | Trained model on GEDI + Sentinel features |
-| **Digital lease signing** | Inquiry accept/decline only | Contract PDF, e-sign, payment |
-| **Company ↔ landowner messaging** | One-shot inquiry message | Threaded chat or email notifications |
-| **Production auth** | Hardcoded JWT secret | Env-based secret, HTTPS, refresh tokens |
-| **Production database** | SQLite | PostgreSQL + backups |
+
+> **Completed (moved to Implemented):** Digital lease signing, company ↔ landowner messaging, production auth, production database.
 
 ### MRV & methodology (carbon science)
 
@@ -260,9 +313,9 @@ CarbonCredits/
 1. **Document methodology choice** (e.g. AR-ACM0003) and map pipeline outputs to MRV requirements.
 2. **Replace AGBD-Lite regression** with a trained model or cite validation against GEDI plots.
 3. **Add email notification stub** when admin verifies KYC or landowner accepts inquiry.
-4. **PostgreSQL migration** if deploying beyond local demo.
-5. **Add pytest** for auth, land registration geometry, and credit_potential math.
-6. **Clean public demo UI** — label simulated tabs clearly or wire trading to full backend.
+4. **Add pytest** for auth, land registration geometry, and credit_potential math.
+5. **Clean public demo UI** — label simulated tabs clearly or wire trading to full backend.
+6. **Deploy to PostgreSQL** — set `DATABASE_URL` in `.env`, run `scripts/backup_db.py` on cron.
 
 ---
 

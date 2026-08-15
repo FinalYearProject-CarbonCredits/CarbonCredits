@@ -19,10 +19,11 @@ from models.land_listing import LandListing
 from models.land_parcel import LandParcel
 
 from models.lease_inquiry import LeaseInquiry
-
 from models.user import User
-
-from schemas.auth import KYCSubmit, LandListingFromParcel, LeaseInquiryRespond
+from models.lease_contract import LeaseContract
+from models.inquiry_message import InquiryMessage
+from schemas.auth import KYCSubmit, LandListingFromParcel, LeaseInquiryRespond, ContractSign, MessageCreate
+from services.contract_service import create_contract_from_inquiry, contract_to_dict, generate_contract_pdf
 
 from services.auth import require_roles
 
@@ -756,6 +757,24 @@ def respond_to_inquiry(
 
     db.commit()
 
+
+
+    contract_info = None
+
+    if body.status == "ACCEPTED":
+
+        try:
+
+            contract = create_contract_from_inquiry(db, inq)
+
+            contract_info = {"contract_id": contract.id, "status": contract.status}
+
+        except Exception as e:
+
+            contract_info = {"error": str(e)}
+
+
+
     return {
 
         "message": f"Inquiry {body.status.lower()}",
@@ -764,10 +783,136 @@ def respond_to_inquiry(
 
         "status": inq.status,
 
+        "contract": contract_info,
+
     }
 
 
 
+
+
+@router.get("/contracts")
+def my_contracts(user: User = Depends(require_landowner), db: Session = Depends(get_db)):
+    contracts = (
+        db.query(LeaseContract)
+        .filter(LeaseContract.landowner_user_id == user.id)
+        .order_by(LeaseContract.created_at.desc())
+        .all()
+    )
+    return {"count": len(contracts), "contracts": [contract_to_dict(c, db) for c in contracts]}
+
+
+@router.post("/contracts/{contract_id}/sign")
+def sign_contract_landowner(
+    contract_id: int,
+    body: ContractSign,
+    user: User = Depends(require_landowner),
+    db: Session = Depends(get_db),
+):
+    contract = db.query(LeaseContract).filter(
+        LeaseContract.id == contract_id,
+        LeaseContract.landowner_user_id == user.id,
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    if contract.landowner_signature:
+        raise HTTPException(status_code=400, detail="Already signed")
+
+    contract.landowner_signature = body.typed_name
+    contract.landowner_signed_at = datetime.utcnow()
+    if contract.company_signature:
+        contract.status = "SIGNED"
+    else:
+        contract.status = "PARTIALLY_SIGNED"
+    db.commit()
+
+    generate_contract_pdf(db, contract)
+    return {"message": "Contract signed by landowner", "status": contract.status}
+
+
+@router.get("/contracts/{contract_id}/pdf")
+def download_contract_pdf_landowner(
+    contract_id: int,
+    user: User = Depends(require_landowner),
+    db: Session = Depends(get_db),
+):
+    from pathlib import Path as P
+    from fastapi.responses import FileResponse
+    contract = db.query(LeaseContract).filter(
+        LeaseContract.id == contract_id,
+        LeaseContract.landowner_user_id == user.id,
+    ).first()
+    if not contract or not contract.pdf_path:
+        raise HTTPException(status_code=404, detail="Contract PDF not found")
+    path = P(contract.pdf_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="PDF file missing on server")
+    return FileResponse(path, filename=f"lease_contract_{contract.id}.pdf", media_type="application/pdf")
+
+
+@router.get("/inquiries/{inquiry_id}/messages")
+def get_inquiry_messages_landowner(
+    inquiry_id: int,
+    user: User = Depends(require_landowner),
+    db: Session = Depends(get_db),
+):
+    listing_ids = [l.id for l in db.query(LandListing).filter(LandListing.owner_user_id == user.id).all()]
+    inq = db.query(LeaseInquiry).filter(
+        LeaseInquiry.id == inquiry_id,
+        LeaseInquiry.listing_id.in_(listing_ids),
+    ).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+
+    messages = (
+        db.query(InquiryMessage)
+        .filter(InquiryMessage.inquiry_id == inquiry_id)
+        .order_by(InquiryMessage.created_at.asc())
+        .all()
+    )
+    return {
+        "inquiry_id": inquiry_id,
+        "count": len(messages),
+        "messages": [
+            {
+                "id": m.id,
+                "sender_user_id": m.sender_user_id,
+                "sender_role": m.sender_role,
+                "body": m.body,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }
+
+
+@router.post("/inquiries/{inquiry_id}/messages", status_code=201)
+def send_message_landowner(
+    inquiry_id: int,
+    body: MessageCreate,
+    user: User = Depends(require_landowner),
+    db: Session = Depends(get_db),
+):
+    listing_ids = [l.id for l in db.query(LandListing).filter(LandListing.owner_user_id == user.id).all()]
+    inq = db.query(LeaseInquiry).filter(
+        LeaseInquiry.id == inquiry_id,
+        LeaseInquiry.listing_id.in_(listing_ids),
+    ).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+    if inq.status not in ("ACCEPTED", "SUBMITTED"):
+        raise HTTPException(status_code=400, detail="Messaging only available for active inquiries")
+
+    msg = InquiryMessage(
+        inquiry_id=inquiry_id,
+        sender_user_id=user.id,
+        sender_role="landowner",
+        body=body.body,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {"message": "Message sent", "id": msg.id}
 
 
 def _listing_dict(l: LandListing, db: Session) -> dict:
