@@ -1,6 +1,6 @@
 #  CarbonChain Backend — Mumbai / Thane Region
 #  FastAPI + SQLite + Real Open Data
-#
+
 #  HOW TO RUN:
 #    pip install fastapi uvicorn sqlalchemy requests python-multipart
 #    python main.py          ← seeds DB + starts server
@@ -20,6 +20,23 @@ from pydantic import BaseModel
 from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
+from utils.fetch_ndvi import fetch_ndvi_for_zones
+
+from database import Base as ParcelBase, engine as parcel_engine, SessionLocal
+from models.land_parcel import LandParcel
+from models.carbon_assessment import CarbonAssessment
+from models.user import User
+from models.kyc import KYCRecord
+from models.land_listing import LandListing
+from models.lease_inquiry import LeaseInquiry
+from routes.parcels import router as parcels_router
+from routes.auth import router as auth_router
+from routes.landowner import router as landowner_router
+from routes.company import router as company_router
+from routes.admin import router as admin_router
+from routes.estimate import router as estimate_router
+from seed_users import seed_users
+from migrate import migrate_schema
 
 #  DATABASE SETUP
 
@@ -92,6 +109,8 @@ class NdviRecord(Base):
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
+ParcelBase.metadata.create_all(bind=parcel_engine)
+
 
 #  SEED REAL DATA  (runs once on first startup)
 
@@ -129,7 +148,7 @@ def fetch_real_forests_from_osm() -> list:
                 "lat":      center.get("lat", 19.076),
                 "lon":      center.get("lon", 72.877),
             })
-        print(f"OSM returned {len(forests)} named forest/park areas")
+        print(f"✅ OSM returned {len(forests)} named forest/park areas")
         return forests[:8]   # keep top 8 for demo clarity
     except Exception as e:
         print(f"⚠️  OSM fetch failed ({e}), using curated fallback data")
@@ -276,21 +295,26 @@ def seed_database():
     db.add_all(trades)
 
     # 5. Real NDVI zones for Mumbai (NASA MODIS values)
+    ndvi_zone_coords = [
+        {"zone_name": "Sanjay Gandhi National Park", "lat": 19.213, "lon": 72.910},
+        {"zone_name": "Aarey Colony Forest",         "lat": 19.163, "lon": 72.871},
+        {"zone_name": "Thane Creek Mangroves",       "lat": 19.074, "lon": 73.001},
+        {"zone_name": "Borivali Forest Fringe",      "lat": 19.228, "lon": 72.854},
+        {"zone_name": "Powai Lake Greenery",         "lat": 19.127, "lon": 72.906},
+        {"zone_name": "Yeoor Hills Reserve",         "lat": 19.233, "lon": 73.001},
+        {"zone_name": "Ulhas River Wetlands",        "lat": 19.198, "lon": 73.192},
+        {"zone_name": "Versova Mangrove Patch",      "lat": 19.160, "lon": 72.807},
+    ]
+
     ndvi_zones = [
-        NdviRecord(zone_name="Sanjay Gandhi National Park", ndvi_value=0.71, lat=19.213, lon=72.910),
-        NdviRecord(zone_name="Aarey Colony Forest",         ndvi_value=0.58, lat=19.163, lon=72.871),
-        NdviRecord(zone_name="Thane Creek Mangroves",       ndvi_value=0.64, lat=19.074, lon=73.001),
-        NdviRecord(zone_name="Borivali Forest Fringe",      ndvi_value=0.52, lat=19.228, lon=72.854),
-        NdviRecord(zone_name="Powai Lake Greenery",         ndvi_value=0.39, lat=19.127, lon=72.906),
-        NdviRecord(zone_name="Yeoor Hills Reserve",         ndvi_value=0.67, lat=19.233, lon=73.001),
-        NdviRecord(zone_name="Ulhas River Wetlands",        ndvi_value=0.44, lat=19.198, lon=73.192),
-        NdviRecord(zone_name="Versova Mangrove Patch",      ndvi_value=0.55, lat=19.160, lon=72.807),
+        NdviRecord(zone_name=z["zone_name"], ndvi_value=0.0, lat=z["lat"], lon=z["lon"])
+        for z in ndvi_zone_coords
     ]
     db.add_all(ndvi_zones)
 
     db.commit()
     db.close()
-    print(f"✅ Seeded {len(real_projects)} projects ({len(osm_forests)} from live OSM), "
+    print(f"Seeded {len(real_projects)} projects ({len(osm_forests)} from live OSM), "
           f"{len(credits)} credits, {len(trades)} trades, {len(ndvi_zones)} NDVI zones")
 
 
@@ -305,10 +329,18 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   
+    allow_origins=["*"], 
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(parcels_router)
+app.include_router(auth_router)
+app.include_router(landowner_router)
+app.include_router(company_router)
+app.include_router(admin_router)
+app.include_router(estimate_router)
+
 
 #  SCHEMAS  (request bodies)
 
@@ -473,6 +505,7 @@ def mint_credits(data: CreditMint, db: Session = Depends(get_db)):
         "project":  project,
     }
 
+
 #  TRADES
 
 @app.get("/api/trades", tags=["Trades"])
@@ -541,6 +574,32 @@ def get_mumbai_ndvi(db: Session = Depends(get_db)):
         ],
     }
 
+@app.post("/api/ndvi/refresh", tags=["Satellite"])
+def refresh_ndvi(db: Session = Depends(get_db)):
+    """
+    Pulls REAL current NDVI from NASA MODIS for every tracked zone
+    and updates the database. Can be slow (2 live calls per zone)
+    since it hits NASA's servers directly.
+    """
+    zones = db.query(NdviRecord).all()
+    zone_inputs = [{"name": z.zone_name, "lat": z.lat, "lon": z.lon} for z in zones]
+    results = fetch_ndvi_for_zones(zone_inputs)
+
+    updated, failed = 0, 0
+    for z, r in zip(zones, results):
+        if r.get("live"):
+            z.ndvi_value = r["ndvi"]
+            z.recorded_at = datetime.utcnow()
+            updated += 1
+        else:
+            failed += 1
+
+    db.commit()
+    return {
+        "message": f"Refreshed {updated} zones from real MODIS data, {failed} failed",
+        "details": results,
+    }
+
 
 @app.get("/api/forests/mumbai", tags=["Satellite"])
 def get_mumbai_forests(db: Session = Depends(get_db)):
@@ -572,8 +631,7 @@ def get_mumbai_forests(db: Session = Depends(get_db)):
         ],
     }
 
-
-#  REAL WEATHER DATA  
+#  REAL WEATHER DATA  (Live — hits Open-Meteo every request)
 
 @app.get("/api/weather/mumbai", tags=["Weather"])
 def get_mumbai_weather():
@@ -640,7 +698,7 @@ def get_mumbai_weather():
         )
 
 
-#  REGION SUMMARY
+#  REGION SUMMARY  (All real data in one call — great for demo)
 
 @app.get("/api/region/mumbai", tags=["Dashboard"])
 def get_region_summary(db: Session = Depends(get_db)):
@@ -705,9 +763,15 @@ def get_region_summary(db: Session = Depends(get_db)):
 #  ENTRY POINT
 
 if __name__ == "__main__":
-    seed_database()   
+    migrate_schema()
+    seed_database()
+    seed_users(SessionLocal())
     print("\nStarting CarbonChain API...")
-    print("API Docs  → http://localhost:8000/docs")
-    print("Region    → Mumbai / Thane, Maharashtra")
-    print("Live APIs → Open-Meteo (weather), OpenStreetMap (forests)\n")
+    print("API Docs  -> http://localhost:8000/docs")
+    print("Login     -> http://127.0.0.1:8080/login.html")
+    print("Region    -> Mumbai / Thane, Maharashtra")
+    print("Demo accounts:")
+    print("  admin@carbonchain.in / admin123")
+    print("  landowner@example.com / user123")
+    print("  company@example.com / company123\n")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
