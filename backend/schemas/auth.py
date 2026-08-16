@@ -95,3 +95,20 @@ class PaymentRecord(BaseModel):
 
 class MessageCreate(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
+
+
+class IssuanceSubmit(BaseModel):
+    """Landowner request to move a listing into the Verra/Gold Standard-style verification pipeline."""
+    registry: str = Field(pattern="^(VERRA|GOLD_STANDARD)$")
+    methodology: str = Field(min_length=3, max_length=50)
+    evidence_notes: Optional[str] = Field(default=None, max_length=4000)
+
+
+class IssuanceReview(BaseModel):
+    """Admin action advancing an issuance record through the verification workflow."""
+    status: str = Field(pattern="^(UNDER_VERIFICATION|VERIFIED|ISSUED|REJECTED)$")
+    verifier_name: Optional[str] = Field(default=None, max_length=200)
+    verifier_notes: Optional[str] = Field(default=None, max_length=4000)
+    verified_annual_tco2e: Optional[float] = Field(default=None, gt=0)
+    issued_total_tco2e: Optional[float] = Field(default=None, gt=0)
+    registry_serial_number: Optional[str] = Field(default=None, max_length=200)

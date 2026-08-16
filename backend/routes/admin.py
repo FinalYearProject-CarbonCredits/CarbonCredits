@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
+from models.credit_issuance import CreditIssuance
 from models.kyc import KYCRecord
 from models.land_listing import LandListing
 from models.lease_inquiry import LeaseInquiry
@@ -13,8 +14,9 @@ from models.land_parcel import LandParcel
 from models.user import User
 from models.lease_contract import LeaseContract
 from models.inquiry_message import InquiryMessage
-from schemas.auth import KYCReview, LandVerificationReview
+from schemas.auth import KYCReview, LandVerificationReview, IssuanceReview
 from services.contract_service import contract_to_dict
+from services.issuance_service import advance_status, issuance_to_dict
 from services.auth import require_roles
 from services.land_registration import DOCS_DIR, parcel_to_dict
 
@@ -236,3 +238,70 @@ def inquiry_messages_admin(
             for m in messages
         ],
     }
+
+
+# ── Verified issuance (Verra / Gold Standard style workflow) ──
+
+@router.get("/verification/pending")
+def pending_verifications(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Issuance records awaiting admin/verifier action (submitted, under review, or verified-awaiting-issuance)."""
+    recs = (
+        db.query(CreditIssuance)
+        .filter(CreditIssuance.status.in_(["SUBMITTED", "UNDER_VERIFICATION", "VERIFIED"]))
+        .order_by(CreditIssuance.created_at.desc())
+        .all()
+    )
+    results = []
+    for r in recs:
+        d = issuance_to_dict(r, db)
+        owner = db.query(User).filter(User.id == r.owner_user_id).first()
+        d["owner_name"] = owner.full_name if owner else None
+        d["owner_email"] = owner.email if owner else None
+        results.append(d)
+    return {"count": len(results), "issuances": results}
+
+
+@router.get("/verification")
+def all_verifications(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Full history of issuance records, including issued and rejected."""
+    recs = db.query(CreditIssuance).order_by(CreditIssuance.created_at.desc()).all()
+    return {"count": len(recs), "issuances": [issuance_to_dict(r, db) for r in recs]}
+
+
+@router.patch("/verification/{issuance_id}")
+def review_verification(
+    issuance_id: int,
+    body: IssuanceReview,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Advance an issuance record through the workflow:
+    SUBMITTED -> UNDER_VERIFICATION -> VERIFIED -> ISSUED (or REJECTED at any review stage).
+    This records the admin/verifier action — it does not call any live registry API.
+    """
+    rec = db.query(CreditIssuance).filter(CreditIssuance.id == issuance_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Issuance record not found")
+
+    try:
+        advance_status(rec, body.status)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if body.verifier_name:
+        rec.verifier_name = body.verifier_name
+    if body.verifier_notes:
+        rec.verifier_notes = body.verifier_notes
+    if body.verified_annual_tco2e is not None:
+        rec.verified_annual_tco2e = body.verified_annual_tco2e
+    if body.issued_total_tco2e is not None:
+        rec.issued_total_tco2e = body.issued_total_tco2e
+    if body.registry_serial_number:
+        rec.registry_serial_number = body.registry_serial_number
+    rec.reviewed_by_admin_id = admin.id
+
+    db.commit()
+    result = issuance_to_dict(rec, db)
+    result["message"] = f"Issuance updated to {rec.status}"
+    return result

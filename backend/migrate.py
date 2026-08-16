@@ -39,10 +39,11 @@ def migrate_schema():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE land_listings ADD COLUMN parcel_id INTEGER"))
 
-    # Ensure new tables exist (lease_contracts, inquiry_messages, refresh_tokens)
+    # Ensure new tables exist (lease_contracts, inquiry_messages, refresh_tokens, credit_issuances)
     # These are created via Base.metadata.create_all, but we call it here as safety net
     from models.lease_contract import LeaseContract
     from models.inquiry_message import InquiryMessage
     from models.refresh_token import RefreshToken
+    from models.credit_issuance import CreditIssuance
 
     Base.metadata.create_all(bind=engine)

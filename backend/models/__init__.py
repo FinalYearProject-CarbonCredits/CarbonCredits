@@ -7,6 +7,7 @@ from models.lease_inquiry import LeaseInquiry
 from models.lease_contract import LeaseContract
 from models.inquiry_message import InquiryMessage
 from models.refresh_token import RefreshToken
+from models.credit_issuance import CreditIssuance
 
 __all__ = [
     "LandParcel",
@@ -18,4 +19,5 @@ __all__ = [
     "LeaseContract",
     "InquiryMessage",
     "RefreshToken",
+    "CreditIssuance",
 ]
