@@ -115,6 +115,57 @@ async function loadInquiries() {
         ${i.company}${i.company_organization ? ' · ' + i.company_organization : ''} → ${i.landowner}
       </div>
       <div style="font-size:12px;color:var(--text2);margin-top:6px;">${i.message}</div>
-      ${i.landowner_response ? `<div style="font-size:12px;color:var(--green);margin-top:6px;">Response: ${i.landowner_response}</div>` : ''}
+      ${i.landowner_response ? '<div style="font-size:12px;color:var(--green);margin-top:6px;">Response: ' + i.landowner_response + '</div>' : ''}
+      ${i.status === 'ACCEPTED' ? '<button class="btn btn-outline" style="margin-top:8px;" onclick="viewMessages(' + i.id + ')">💬 View Messages</button><div id="admin-msgs-' + i.id + '" class="chat-thread" style="display:none;"></div>' : ''}
     </div>`).join('');
 }
+
+// ── Contracts ──
+async function loadContracts() {
+  const el = document.getElementById('all-contracts');
+  if (!el) return;
+  const res = await apiFetch('/admin/contracts');
+  const data = await res.json();
+  if (!data.count) {
+    el.innerHTML = '<span style="color:var(--text3);font-family:var(--mono);font-size:12px;">No contracts yet</span>';
+    return;
+  }
+  el.innerHTML = data.contracts.map(c => `
+    <div class="contract-card">
+      <span class="contract-status ${c.status}">${c.status}</span>
+      <span class="payment-badge ${c.payment_status}" style="margin-left:8px;">${c.payment_status}</span>
+      <h3>${c.listing_title || 'Contract #' + c.id}</h3>
+      <div style="font-size:12px;margin-top:6px;">
+        ${c.landowner_name} → ${c.company_name}${c.company_org ? ' · ' + c.company_org : ''}
+      </div>
+      <div style="font-size:13px;margin-top:8px;">
+        ${c.area_ha} ha · ${c.lease_years} years · ₹${(c.total_lease_inr || 0).toLocaleString('en-IN')}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;">
+        Landowner: ${c.landowner_signed ? '✓ signed' : '✗'}
+        · Company: ${c.company_signed ? '✓ signed' : '✗'}
+        ${c.payment_reference ? ' · Payment ref: ' + c.payment_reference : ''}
+      </div>
+    </div>`).join('');
+}
+
+loadContracts();
+
+// ── Message viewing ──
+window.viewMessages = async (inquiryId) => {
+  const el = document.getElementById(`admin-msgs-${inquiryId}`);
+  if (!el) return;
+  if (el.style.display === 'block') { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  try {
+    const res = await apiFetch(`/admin/inquiries/${inquiryId}/messages`);
+    const data = await res.json();
+    el.innerHTML = data.messages.length
+      ? data.messages.map(m => `
+        <div class="chat-msg ${m.sender_role}">
+          <div class="chat-meta">${m.sender_role} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</div>
+          ${m.body}
+        </div>`).join('')
+      : '<span style="color:var(--text3);font-family:var(--mono);font-size:11px;">No messages</span>';
+  } catch (e) { el.textContent = e.message; }
+};

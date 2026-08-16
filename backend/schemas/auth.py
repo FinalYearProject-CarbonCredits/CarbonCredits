@@ -20,9 +20,19 @@ class UserLogin(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
     role: str
     full_name: str
     user_id: int
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 class UserOut(BaseModel):
@@ -73,3 +83,15 @@ class LeaseInquiryRespond(BaseModel):
     status: str = Field(pattern="^(ACCEPTED|DECLINED)$")
     landowner_response: str = Field(min_length=5, max_length=2000)
 
+
+class ContractSign(BaseModel):
+    typed_name: str = Field(min_length=2, max_length=200)
+
+
+class PaymentRecord(BaseModel):
+    amount_inr: float = Field(gt=0)
+    reference: str = Field(min_length=3, max_length=200)
+
+
+class MessageCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)

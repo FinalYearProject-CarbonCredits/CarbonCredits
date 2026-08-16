@@ -20,9 +20,11 @@ from models.lease_inquiry import LeaseInquiry
 
 from models.user import User
 
-from schemas.auth import LeaseInquiryCreate
-
+from schemas.auth import LeaseInquiryCreate, ContractSign, PaymentRecord, MessageCreate
 from services.auth import require_roles
+from models.lease_contract import LeaseContract
+from models.inquiry_message import InquiryMessage
+from services.contract_service import contract_to_dict, generate_contract_pdf
 
 
 
@@ -371,3 +373,152 @@ def my_inquiries(user: User = Depends(require_company), db: Session = Depends(ge
     return {"count": len(results), "inquiries": results}
 
 
+@router.get("/contracts")
+def my_contracts(user: User = Depends(require_company), db: Session = Depends(get_db)):
+    contracts = (
+        db.query(LeaseContract)
+        .filter(LeaseContract.company_user_id == user.id)
+        .order_by(LeaseContract.created_at.desc())
+        .all()
+    )
+    return {"count": len(contracts), "contracts": [contract_to_dict(c, db) for c in contracts]}
+
+
+@router.post("/contracts/{contract_id}/sign")
+def sign_contract_company(
+    contract_id: int,
+    body: ContractSign,
+    user: User = Depends(require_company),
+    db: Session = Depends(get_db),
+):
+    contract = db.query(LeaseContract).filter(
+        LeaseContract.id == contract_id,
+        LeaseContract.company_user_id == user.id,
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    if contract.company_signature:
+        raise HTTPException(status_code=400, detail="Already signed")
+
+    contract.company_signature = body.typed_name
+    contract.company_signed_at = datetime.utcnow()
+    if contract.landowner_signature:
+        contract.status = "SIGNED"
+    else:
+        contract.status = "PARTIALLY_SIGNED"
+    db.commit()
+
+    generate_contract_pdf(db, contract)
+    return {"message": "Contract signed by company", "status": contract.status}
+
+
+@router.post("/contracts/{contract_id}/pay")
+def record_payment(
+    contract_id: int,
+    body: PaymentRecord,
+    user: User = Depends(require_company),
+    db: Session = Depends(get_db),
+):
+    contract = db.query(LeaseContract).filter(
+        LeaseContract.id == contract_id,
+        LeaseContract.company_user_id == user.id,
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    if contract.status not in ("SIGNED", "PARTIALLY_SIGNED"):
+        raise HTTPException(status_code=400, detail="Contract must be signed before payment")
+    if contract.payment_status == "PAID":
+        raise HTTPException(status_code=400, detail="Already paid")
+
+    contract.payment_amount_inr = body.amount_inr
+    contract.payment_reference = body.reference
+    contract.payment_status = "PAID"
+    contract.paid_at = datetime.utcnow()
+    contract.status = "COMPLETED"
+    db.commit()
+
+    generate_contract_pdf(db, contract)
+    return {"message": "Payment recorded", "status": contract.status, "payment_status": contract.payment_status}
+
+
+@router.get("/contracts/{contract_id}/pdf")
+def download_contract_pdf_company(
+    contract_id: int,
+    user: User = Depends(require_company),
+    db: Session = Depends(get_db),
+):
+    from pathlib import Path as P
+    from fastapi.responses import FileResponse
+    contract = db.query(LeaseContract).filter(
+        LeaseContract.id == contract_id,
+        LeaseContract.company_user_id == user.id,
+    ).first()
+    if not contract or not contract.pdf_path:
+        raise HTTPException(status_code=404, detail="Contract PDF not found")
+    path = P(contract.pdf_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="PDF file missing on server")
+    return FileResponse(path, filename=f"lease_contract_{contract.id}.pdf", media_type="application/pdf")
+
+
+@router.get("/inquiries/{inquiry_id}/messages")
+def get_inquiry_messages_company(
+    inquiry_id: int,
+    user: User = Depends(require_company),
+    db: Session = Depends(get_db),
+):
+    inq = db.query(LeaseInquiry).filter(
+        LeaseInquiry.id == inquiry_id,
+        LeaseInquiry.company_user_id == user.id,
+    ).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+
+    messages = (
+        db.query(InquiryMessage)
+        .filter(InquiryMessage.inquiry_id == inquiry_id)
+        .order_by(InquiryMessage.created_at.asc())
+        .all()
+    )
+    return {
+        "inquiry_id": inquiry_id,
+        "count": len(messages),
+        "messages": [
+            {
+                "id": m.id,
+                "sender_user_id": m.sender_user_id,
+                "sender_role": m.sender_role,
+                "body": m.body,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }
+
+
+@router.post("/inquiries/{inquiry_id}/messages", status_code=201)
+def send_message_company(
+    inquiry_id: int,
+    body: MessageCreate,
+    user: User = Depends(require_company),
+    db: Session = Depends(get_db),
+):
+    inq = db.query(LeaseInquiry).filter(
+        LeaseInquiry.id == inquiry_id,
+        LeaseInquiry.company_user_id == user.id,
+    ).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+    if inq.status not in ("ACCEPTED", "SUBMITTED"):
+        raise HTTPException(status_code=400, detail="Messaging only available for active inquiries")
+
+    msg = InquiryMessage(
+        inquiry_id=inquiry_id,
+        sender_user_id=user.id,
+        sender_role="company",
+        body=body.body,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {"message": "Message sent", "id": msg.id}
