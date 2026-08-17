@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from services.agbd_lite import MODEL_NAME as LITE_MODEL, infer_agbd_from_ndvi
+from services.agbd_lite import MODEL_NAME as LITE_MODEL, MODEL_VERSION as LITE_VERSION, infer_agbd_from_features
 from services.gedi import (
     fetch_gedi_footprints_in_bbox,
     fetch_gedi_via_ornl_subset,
@@ -54,7 +54,7 @@ def _compute_ndvi_evi_from_scene(scene: dict[str, Any], bbox: tuple[float, float
     nir = _fetch_cog_window(scene.get("nir_asset"), bbox)
 
     if red is None or nir is None or red.size == 0:
-        return {"ndvi_mean": None, "evi_mean": None, "valid_pixel_pct": 0.0}
+        return {"ndvi_mean": None, "evi_mean": None, "ndvi_std": None, "evi_std": None, "valid_pixel_pct": 0.0}
 
     # Scale reflectance (Sentinel-2 L2A COGs store DN values)
     red = np.where(red <= 0, np.nan, red / S2_SCALE)
@@ -65,11 +65,13 @@ def _compute_ndvi_evi_from_scene(scene: dict[str, Any], bbox: tuple[float, float
 
     valid = np.isfinite(ndvi) & (ndvi > -0.2) & (ndvi < 1.0) & (red > 0.01)
     if not valid.any():
-        return {"ndvi_mean": None, "evi_mean": None, "valid_pixel_pct": 0.0}
+        return {"ndvi_mean": None, "evi_mean": None, "ndvi_std": None, "evi_std": None, "valid_pixel_pct": 0.0}
 
     return {
         "ndvi_mean": round(float(np.nanmean(ndvi[valid])), 4),
         "evi_mean": round(float(np.nanmean(evi[valid])), 4),
+        "ndvi_std": round(float(np.nanstd(ndvi[valid])), 4),
+        "evi_std": round(float(np.nanstd(evi[valid])), 4),
         "valid_pixel_pct": round(float(valid.sum() / valid.size * 100), 1),
         "ndvi_array": ndvi,
         "valid_mask": valid,
@@ -108,7 +110,7 @@ def analyze_parcel(geometry: dict[str, Any], parcel_id: int, area_ha: float) -> 
     scene = get_best_scene(bbox)
     sat_meta = scene_metadata_summary(scene)
 
-    veg_stats = {"ndvi_mean": None, "evi_mean": None, "valid_pixel_pct": 0.0}
+    veg_stats = {"ndvi_mean": None, "evi_mean": None, "ndvi_std": None, "evi_std": None, "valid_pixel_pct": 0.0}
     raster_path = None
 
     if scene:
@@ -135,25 +137,20 @@ def analyze_parcel(geometry: dict[str, Any], parcel_id: int, area_ha: float) -> 
 
     has_ndvi = veg_stats.get("ndvi_mean") is not None
     has_gedi = gedi_summary["count"] >= 1
+    lite_meta = None
 
     if has_gedi:
         data_source = f"GEDI L4A lidar footprints inside parcel (n={gedi_summary['count']})"
         status = "COMPLETE"
         notes = None
-    elif has_ndvi and gedi_nearby["count"] >= 1:
-        data_source = (
-            f"Sentinel-2 NDVI/EVI + nearby GEDI reference "
-            f"(n={gedi_nearby['count']}, mean {gedi_nearby['mean_agbd']} Mg/ha)"
-        )
-        status = "PARTIAL"
-        notes = (
-            "No GEDI footprints inside parcel polygon. "
-            f"Nearby GEDI mean AGBD: {gedi_nearby['mean_agbd']} Mg/ha (reference only, not parcel estimate). "
-            "Draw parcel over forest with GEDI coverage, or install AGBD-Lite model for full inference."
-        )
-        agbd_stats = {k: None for k in agbd_stats}
     elif has_ndvi:
-        lite = infer_agbd_from_ndvi(veg_stats["ndvi_mean"])
+        lite = infer_agbd_from_features(
+            veg_stats["ndvi_mean"],
+            evi_mean=veg_stats.get("evi_mean"),
+            ndvi_std=veg_stats.get("ndvi_std"),
+            nearby_gedi_mean=gedi_nearby.get("mean_agbd") if gedi_nearby["count"] >= 1 else None,
+        )
+        lite_meta = lite
         if lite["available"]:
             agbd_stats = {
                 "mean_agbd": lite["mean_agbd"],
@@ -162,11 +159,16 @@ def analyze_parcel(geometry: dict[str, Any], parcel_id: int, area_ha: float) -> 
                 "max_agbd": lite["max_agbd"],
             }
             uncertainty = lite["agbd_uncertainty"]
-            data_source = f"AGBD-Lite NDVI regression ({LITE_MODEL}) — no GEDI footprints in parcel"
+            gedi_note = (
+                f" + nearby GEDI n={gedi_nearby['count']}"
+                if gedi_nearby["count"] >= 1
+                else " — no GEDI footprints in/near parcel"
+            )
+            data_source = f"{LITE_MODEL} {LITE_VERSION} (Sentinel-2 NDVI/EVI RF){gedi_note}"
             status = "PARTIAL"
             notes = lite["note"]
         else:
-            data_source = "Sentinel-2 NDVI/EVI — insufficient GEDI coverage for AGBD"
+            data_source = "Sentinel-2 NDVI/EVI — insufficient vegetation signal for AGBD"
             status = "PARTIAL"
             notes = lite["note"]
             agbd_stats = {k: None for k in agbd_stats}
@@ -190,25 +192,30 @@ def analyze_parcel(geometry: dict[str, Any], parcel_id: int, area_ha: float) -> 
         "gedi_nearby_count": gedi_nearby["count"],
         "gedi_nearby_mean_agbd": gedi_nearby.get("mean_agbd"),
         "raster_type": "NDVI (Sentinel-2)" if raster_path else None,
+        "agbd_lite": {
+            "model_name": lite_meta.get("method") if lite_meta else None,
+            "model_version": lite_meta.get("model_version") if lite_meta else None,
+            "used_random_forest": lite_meta.get("used_random_forest") if lite_meta else None,
+            "features_used": lite_meta.get("features_used") if lite_meta else None,
+            "model_reference": lite_meta.get("model_reference") if lite_meta else None,
+        } if lite_meta else None,
     }
 
     uncertainty = locals().get("uncertainty")
-    if uncertainty is None and agbd_stats["mean_agbd"] is not None:
-        if gedi_summary["count"] >= 2:
-            spread = (agbd_stats["max_agbd"] or 0) - (agbd_stats["min_agbd"] or 0)
-            uncertainty = round(spread / 2, 2)
-        elif has_ndvi and not has_gedi:
-            lite_unc = infer_agbd_from_ndvi(veg_stats.get("ndvi_mean"))
-            uncertainty = lite_unc.get("agbd_uncertainty")
+    if uncertainty is None and agbd_stats["mean_agbd"] is not None and gedi_summary["count"] >= 2:
+        spread = (agbd_stats["max_agbd"] or 0) - (agbd_stats["min_agbd"] or 0)
+        uncertainty = round(spread / 2, 2)
 
     ndvi_change = compute_ndvi_change(bbox, veg_stats.get("ndvi_mean")) if has_ndvi else {"available": False}
 
-    agbd_source = "GEDI_L4A" if has_gedi else ("AGBD_LITE" if agbd_stats.get("mean_agbd") else None)
+    agbd_source = "GEDI_L4A" if has_gedi else ("AGBD_LITE_RF" if agbd_stats.get("mean_agbd") else None)
+    out_model_name = LITE_MODEL if agbd_source == "AGBD_LITE_RF" else MODEL_NAME
+    out_model_version = (lite_meta or {}).get("model_version", LITE_VERSION) if agbd_source == "AGBD_LITE_RF" else MODEL_VERSION
 
     return {
         "status": status,
-        "model_name": MODEL_NAME,
-        "model_version": MODEL_VERSION,
+        "model_name": out_model_name,
+        "model_version": out_model_version,
         **agbd_stats,
         "agbd_uncertainty": uncertainty,
         "valid_pixel_pct": veg_stats.get("valid_pixel_pct", 0),
@@ -216,6 +223,7 @@ def analyze_parcel(geometry: dict[str, Any], parcel_id: int, area_ha: float) -> 
         "observation_date": sat_meta.get("observation_date"),
         "ndvi_mean": veg_stats.get("ndvi_mean"),
         "evi_mean": veg_stats.get("evi_mean"),
+        "ndvi_std": veg_stats.get("ndvi_std"),
         "gedi_footprint_count": gedi_summary["count"],
         "agbd_source": agbd_source,
         "ndvi_change": ndvi_change,

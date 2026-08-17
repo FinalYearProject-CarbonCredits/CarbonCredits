@@ -63,16 +63,19 @@ Open http://127.0.0.1:8080/login.html after starting both servers.
 3. Submit KYC (offline verification by admin)
 4. After KYC + land verified → publish listing with lease duration
 5. Respond to company lease inquiries (accept/decline)
+6. Submit listing for Verra / Gold Standard-style verification → admin assigns a VVB → issue serial
 
 ### Company flow
 1. Login → browse KYC-verified landowners with verified land
-2. View lease duration, area, net creditable carbon potential
+2. View lease duration, area, net creditable carbon potential (PRELIMINARY vs ISSUED)
 3. Submit lease inquiry → track landowner response
+4. Look up issued credits by registry / tracking serial
 
 ### Admin flow
 1. Login → review pending land documents and KYC submissions
 2. Verify/reject after offline document check
 3. Monitor company ↔ landowner lease inquiries
+4. Credit issuance queue: assign third-party VVB → record verified tCO₂e → issue serial
 
 ## Parcel / AGBD Biomass API
 
@@ -115,9 +118,16 @@ curl -X POST http://localhost:8000/api/parcels/1/analyze \
   -d '{"carbon_fraction": 0.47}'
 ```
 
-> **Note:** AGBD values come from real GEDI L4A footprints when available, or **AGBD-Lite** NDVI regression as fallback.
+> **Note:** AGBD values come from real GEDI L4A footprints when available, or **AGBD-Lite v2** (Random Forest trained on GEDI-calibrated Sentinel-2 NDVI/EVI features) as fallback.
 > Analysis includes baseline/additionality screening, historical NDVI change, and net creditable estimates.
-> Results are **preliminary estimates**, not verified carbon credits.
+> Results are **preliminary estimates** until a listing completes the verification & issuance workflow.
+
+Retrain the AGBD-Lite model:
+
+```bash
+cd backend
+python scripts/train_agbd_lite.py
+```
 
 ### GEDI validation script
 
@@ -136,6 +146,11 @@ python scripts/validate_gedi.py --bbox 72.9 19.2 73.0 19.25
 | GET | `/api/landowner/inquiries` | landowner | Inquiries on my listings |
 | PATCH | `/api/landowner/inquiries/{id}` | landowner | Accept/decline inquiry |
 | GET | `/api/admin/inquiries` | admin | All lease inquiries |
+| POST | `/api/landowner/listings/{id}/verification/submit` | landowner | Submit for Verra/GS verification |
+| GET | `/api/landowner/verification` | landowner | My issuance records |
+| GET | `/api/admin/verification/pending` | admin | Issuance queue |
+| PATCH | `/api/admin/verification/{id}` | admin | Assign VVB / verify / issue |
+| GET | `/api/registry/credits/{serial}` | public | Look up issued serial |
 
 ### Additional dependencies
 

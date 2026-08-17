@@ -178,6 +178,7 @@ window.analyzeLand = async (parcelId) => {
       `Verification: ${data.verification_status}`,
       `Computed area: ${data.computed_area_ha} ha`,
       `NDVI: ${sat.ndvi_mean ?? 'N/A'} · AGBD source: ${sat.agbd_source ?? 'N/A'}`,
+      sat.model_name ? `Model: ${sat.model_name} ${sat.model_version || ''}` : '',
       sat.mean_agbd_mg_ha != null ? `Mean AGBD: ${sat.mean_agbd_mg_ha} Mg/ha` : '',
       ndviCh.available ? `NDVI trend (${ndviCh.lookback_months}mo): ${ndviCh.vegetation_trend} (Δ ${ndviCh.ndvi_delta})` : '',
       `Annual potential: ${cp.estimated_annual_removal_tco2e.min}–${cp.estimated_annual_removal_tco2e.max} tCO₂e/yr`,
@@ -208,14 +209,73 @@ async function loadListings() {
     el.innerHTML = '<span style="color:var(--text3);font-family:var(--mono);font-size:12px;">No listings yet</span>';
     return;
   }
-  el.innerHTML = list.map(l => `
+  el.innerHTML = list.map(l => {
+    const iss = l.issuance;
+    const status = iss ? iss.status : 'NOT_SUBMITTED';
+    const canSubmit = !iss || iss.status === 'REJECTED';
+    return `
     <div class="listing-card">
+      <span class="issuance-status ${status}">${status.replace(/_/g, ' ')}</span>
       <h3>${l.title}</h3>
       <div style="font-family:var(--mono);font-size:11px;color:var(--text3);">
         Survey ${l.survey_number || '—'} · ${l.area_ha} ha · Lease ${l.lease_duration_years} years
+        · ${l.preliminary_only ? 'PRELIMINARY estimate' : 'VERIFIED credits'}
       </div>
-    </div>`).join('');
+      <div style="font-size:13px;margin-top:8px;">
+        Est. ${l.estimated_annual_credits_tco2 ?? '—'} tCO₂e/yr
+        ${iss && iss.registry_label ? ' · ' + iss.registry_label : ''}
+        ${iss && iss.methodology ? ' · ' + iss.methodology : ''}
+      </div>
+      ${iss && iss.registry_serial_number ? `<div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-top:6px;">Serial: ${iss.registry_serial_number}</div>` : ''}
+      ${iss && iss.verifier_name ? `<div style="font-size:12px;margin-top:4px;">VVB: ${iss.verifier_name}</div>` : ''}
+      ${canSubmit ? `
+        <div class="issuance-form" id="iss-form-${l.id}">
+          <div class="form-group">
+            <label class="form-label">Registry</label>
+            <select class="form-select" id="iss-reg-${l.id}">
+              <option value="VERRA">Verra VCS</option>
+              <option value="GOLD_STANDARD">Gold Standard</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Methodology</label>
+            <select class="form-select" id="iss-meth-${l.id}">
+              <option value="AR-ACM0003">AR-ACM0003 — Afforestation / Reforestation</option>
+              <option value="VM0007">VM0007 — REDD+ Framework (Verra)</option>
+              <option value="VM0033">VM0033 — Tidal Wetland / Seagrass (Verra)</option>
+              <option value="AR-AMS0007">AR-AMS0007 — Small-scale A/R</option>
+              <option value="GS4GG-LR">GS4GG-LR — Gold Standard Land Use &amp; Forests</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Evidence notes (optional)</label>
+            <input class="form-input" id="iss-ev-${l.id}" placeholder="Baseline docs, plots, additionality narrative…">
+          </div>
+          <button class="btn btn-amber" onclick="submitIssuance(${l.id})">Submit for third-party verification</button>
+        </div>` : ''}
+      ${iss && (iss.status === 'VERIFIED' || iss.status === 'ISSUED') ? `
+        <a href="${BACKEND}/api/landowner/verification/${iss.id}/certificate" target="_blank" class="btn btn-outline" style="margin-top:10px;display:inline-block;">📄 Certificate</a>
+      ` : ''}
+    </div>`;
+  }).join('');
 }
+
+window.submitIssuance = async (listingId) => {
+  const registry = document.getElementById(`iss-reg-${listingId}`).value;
+  const methodology = document.getElementById(`iss-meth-${listingId}`).value;
+  const evidence_notes = document.getElementById(`iss-ev-${listingId}`).value || undefined;
+  try {
+    const res = await apiFetch(`/landowner/listings/${listingId}/verification/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ registry, methodology, evidence_notes }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+    toast(data.message);
+    loadListings();
+  } catch (e) { toast(e.message); }
+};
 
 document.getElementById('btn-kyc').addEventListener('click', async () => {
   try {

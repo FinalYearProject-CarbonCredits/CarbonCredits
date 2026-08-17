@@ -11,8 +11,9 @@ class CreditIssuance(Base):
     carbon credit (Verra VCS / Gold Standard style). This models the offline,
     auditor-driven workflow those registries actually use — it does not call
     any live registry API (neither Verra nor Gold Standard expose one for
-    issuance). registry_serial_number is only meaningful once a human has
-    actually completed real registry submission outside this platform.
+    issuance). registry_serial_number is only a live registry ID once a human
+    pastes the serial issued outside this platform; otherwise it is a
+    CarbonChain tracking serial.
     """
 
     __tablename__ = "credit_issuances"
@@ -36,6 +37,7 @@ class CreditIssuance(Base):
     verifier_name = Column(String, nullable=True)
     verifier_notes = Column(Text, nullable=True)
     registry_serial_number = Column(String, nullable=True)
+    pdf_path = Column(String, nullable=True)
 
     evidence_notes = Column(Text, nullable=True)
 

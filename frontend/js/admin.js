@@ -150,6 +150,81 @@ async function loadContracts() {
 }
 
 loadContracts();
+loadPendingIssuance();
+
+async function loadPendingIssuance() {
+  const el = document.getElementById('pending-issuance');
+  if (!el) return;
+  const res = await apiFetch('/admin/verification/pending');
+  const data = await res.json();
+  if (!data.count) {
+    el.innerHTML = '<span style="color:var(--text3);font-family:var(--mono);font-size:12px;">No issuance requests awaiting action</span>';
+    return;
+  }
+  el.innerHTML = data.issuances.map(r => `
+    <div class="listing-card" id="iss-${r.id}">
+      <span class="issuance-status ${r.status}">${r.status.replace(/_/g, ' ')}</span>
+      <h3>${r.listing_title || 'Listing #' + r.listing_id}</h3>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);">
+        ${r.owner_name || ''} · ${r.owner_email || ''} · ${r.registry_label || r.registry} · ${r.methodology || ''}
+      </div>
+      <div style="font-size:13px;margin-top:8px;">
+        Preliminary: ${r.preliminary_annual_tco2e ?? '—'} tCO₂e/yr
+        ${r.verified_annual_tco2e != null ? ' · Verified: ' + r.verified_annual_tco2e + ' tCO₂e/yr' : ''}
+      </div>
+      ${r.evidence_notes ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;">Evidence: ${r.evidence_notes}</div>` : ''}
+      ${r.registry_serial_number ? `<div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-top:6px;">Serial: ${r.registry_serial_number}</div>` : ''}
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">Third-party VVB name</label>
+        <input class="form-input" id="vvb-${r.id}" value="${r.verifier_name || ''}" placeholder="e.g. SCS Global Services">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Verified annual tCO₂e</label>
+        <input class="form-input" id="vt-${r.id}" type="number" step="0.01" value="${r.verified_annual_tco2e || r.preliminary_annual_tco2e || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Issued total tCO₂e (for ISSUED)</label>
+        <input class="form-input" id="it-${r.id}" type="number" step="0.01" value="${r.issued_total_tco2e || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Registry serial (optional — tracking serial auto-generated)</label>
+        <input class="form-input" id="ser-${r.id}" value="${r.registry_serial_number || ''}" placeholder="VCS-… or GS-…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Verifier notes</label>
+        <input class="form-input" id="vn-${r.id}" value="${r.verifier_notes || ''}" placeholder="Site visit, plots, findings…">
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        ${r.status === 'SUBMITTED' ? `<button class="btn btn-amber" onclick="reviewIssuance(${r.id}, 'UNDER_VERIFICATION')">Assign VVB / start verification</button>` : ''}
+        ${r.status === 'UNDER_VERIFICATION' ? `<button class="btn btn-green" onclick="reviewIssuance(${r.id}, 'VERIFIED')">Mark verified</button>` : ''}
+        ${r.status === 'VERIFIED' ? `<button class="btn btn-green" onclick="reviewIssuance(${r.id}, 'ISSUED')">Issue credits</button>` : ''}
+        ${['SUBMITTED','UNDER_VERIFICATION','VERIFIED'].includes(r.status) ? `<button class="btn btn-outline" onclick="reviewIssuance(${r.id}, 'REJECTED')">Reject</button>` : ''}
+        ${r.has_certificate ? `<a href="${BACKEND}/api/admin/verification/${r.id}/certificate" target="_blank" class="btn btn-outline">📄 Certificate</a>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+window.reviewIssuance = async (id, status) => {
+  const body = {
+    status,
+    verifier_name: document.getElementById(`vvb-${id}`)?.value || undefined,
+    verifier_notes: document.getElementById(`vn-${id}`)?.value || undefined,
+    verified_annual_tco2e: parseFloat(document.getElementById(`vt-${id}`)?.value) || undefined,
+    issued_total_tco2e: parseFloat(document.getElementById(`it-${id}`)?.value) || undefined,
+    registry_serial_number: document.getElementById(`ser-${id}`)?.value || undefined,
+  };
+  try {
+    const res = await apiFetch(`/admin/verification/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+    toast(data.message);
+    loadPendingIssuance();
+  } catch (e) { toast(e.message); }
+};
 
 // ── Message viewing ──
 window.viewMessages = async (inquiryId) => {

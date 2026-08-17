@@ -228,3 +228,23 @@
 .payment-badge.UNPAID { background: rgba(248,113,113,0.15); color: #f87171; }
 .payment-badge.PAID { background: rgba(34,197,94,0.15); color: var(--green); }
 
+.issuance-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9px;
+  margin-bottom: 8px;
+}
+.issuance-status.NOT_SUBMITTED { background: rgba(148,163,184,0.15); color: var(--text3); }
+.issuance-status.SUBMITTED { background: rgba(56,189,248,0.15); color: #38bdf8; }
+.issuance-status.UNDER_VERIFICATION { background: rgba(245,158,11,0.15); color: var(--amber); }
+.issuance-status.VERIFIED { background: rgba(34,197,94,0.15); color: var(--green); }
+.issuance-status.ISSUED { background: rgba(34,197,94,0.28); color: var(--green); }
+.issuance-status.REJECTED { background: rgba(248,113,113,0.15); color: #f87171; }
+.issuance-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+

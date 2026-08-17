@@ -32,9 +32,15 @@ async function loadListings() {
           · Type: ${item.lease.type.replace(/_/g, ' ')}
         </div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-top:8px;">
-          Net creditable est. ${item.carbon_potential.estimated_annual_credits_tco2 || '—'} tCO₂e/yr
+          ${item.carbon_potential.preliminary_only === false ? 'Verified' : 'Net creditable est.'}
+          ${item.carbon_potential.estimated_annual_credits_tco2 || '—'} tCO₂e/yr
           · Total ~${item.carbon_potential.estimated_total_credits_tco2 || '—'} tCO₂e
         </div>
+        ${item.issuance ? `<div style="margin-top:8px;"><span class="issuance-status ${item.issuance.status}">${item.issuance.status.replace(/_/g, ' ')}</span>
+          ${item.issuance.registry_label ? ' · ' + item.issuance.registry_label : ''}
+          ${item.issuance.methodology ? ' · ' + item.issuance.methodology : ''}
+          ${item.issuance.registry_serial_number ? '<div style="font-family:var(--mono);font-size:10px;margin-top:4px;">Serial: ' + item.issuance.registry_serial_number + '</div>' : ''}
+        </div>` : '<div style="margin-top:8px;"><span class="issuance-status NOT_SUBMITTED">PRELIMINARY ONLY</span></div>'}
       </div>
       ${item.notes ? `<div style="font-size:12px;color:var(--text3);margin-top:8px;">${item.notes}</div>` : ''}
       <button class="btn btn-green" style="margin-top:12px;" onclick="openInquiry(${item.listing_id}, ${item.lease.duration_years})">
@@ -187,6 +193,31 @@ window.recordPayment = async (contractId, totalAmount) => {
 };
 
 loadContracts();
+
+document.getElementById('btn-serial')?.addEventListener('click', async () => {
+  const serial = document.getElementById('serial-lookup').value.trim();
+  const el = document.getElementById('serial-result');
+  if (!serial) return toast('Enter a serial');
+  el.style.display = 'block';
+  el.textContent = 'Looking up…';
+  try {
+    const res = await fetch(`${API}/registry/credits/${encodeURIComponent(serial)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Not found');
+    el.textContent = [
+      `Status: ${data.status}`,
+      `Registry: ${data.registry}`,
+      `Methodology: ${data.methodology || '—'}`,
+      `Listing: ${data.listing_title || '—'}`,
+      `Verified: ${data.verified_annual_tco2e ?? '—'} tCO₂e/yr`,
+      `Issued total: ${data.issued_total_tco2e ?? '—'} tCO₂e`,
+      `VVB: ${data.verifier_name || '—'}`,
+      `Issued at: ${data.issued_at || '—'}`,
+      '',
+      data.disclaimer,
+    ].join('\n');
+  } catch (e) { el.textContent = e.message; }
+});
 
 // ── Messaging (with auto-refresh polling) ──
 const _msgPollers = {};

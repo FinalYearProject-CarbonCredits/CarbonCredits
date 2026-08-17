@@ -47,3 +47,10 @@ def migrate_schema():
     from models.credit_issuance import CreditIssuance
 
     Base.metadata.create_all(bind=engine)
+
+    inspector = inspect(engine)
+    if "credit_issuances" in inspector.get_table_names():
+        existing = {c["name"] for c in inspector.get_columns("credit_issuances")}
+        if "pdf_path" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE credit_issuances ADD COLUMN pdf_path VARCHAR"))

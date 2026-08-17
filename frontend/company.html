@@ -29,7 +29,8 @@
         Browse landowners who completed offline KYC and are offering land for carbon credit projects.
       </p>
       <div class="disclaimer-box">
-        All credit figures are preliminary estimates — not verified issued carbon credits.
+        Listings show <strong>PRELIMINARY</strong> until a third-party VVB verifies and admin records registry issuance
+        (Verra VCS / Gold Standard style). Issued listings display a serial you can look up.
       </div>
       <div id="listings" style="margin-top:20px;">Loading...</div>
     </div>
@@ -48,6 +49,16 @@
       <div class="card-title">// My Lease Contracts</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Contracts generated when landowners accept your inquiries. Sign, pay, and download.</p>
       <div id="my-contracts">Loading...</div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title">// Registry Serial Lookup</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Look up an issued credit by Verra / Gold Standard or CarbonChain tracking serial.</p>
+      <div style="display:flex;gap:8px;">
+        <input class="form-input" id="serial-lookup" placeholder="CC-TRACK-VCS-IN-MH-00001-2026">
+        <button class="btn btn-green" id="btn-serial">Lookup</button>
+      </div>
+      <div id="serial-result" class="result-box" style="display:none;margin-top:12px;"></div>
     </div>
   </div>
 

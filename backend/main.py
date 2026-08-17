@@ -54,6 +54,7 @@ from routes.landowner import router as landowner_router
 from routes.company import router as company_router
 from routes.admin import router as admin_router
 from routes.estimate import router as estimate_router
+from routes.registry import router as registry_router
 from seed_users import seed_users
 from migrate import migrate_schema
 
@@ -372,6 +373,7 @@ app.include_router(landowner_router)
 app.include_router(company_router)
 app.include_router(admin_router)
 app.include_router(estimate_router)
+app.include_router(registry_router)
 
 
 #  SCHEMAS  (request bodies)

@@ -22,7 +22,17 @@ from schemas.auth import (
     IssuanceSubmit,
 )
 from services.contract_service import create_contract_from_inquiry, contract_to_dict, generate_contract_pdf
-from services.issuance_service import advance_status, issuance_to_dict
+from services.issuance_service import (
+    advance_status,
+    generate_issuance_certificate,
+    issuance_summary,
+    issuance_to_dict,
+    latest_issuance_for_listing,
+    REGISTRY_METHODOLOGIES,
+    REGISTRY_LABELS,
+    DISCLAIMER,
+    validate_registry_methodology,
+)
 from services.auth import require_roles
 from services.biomass import analyze_parcel
 from services.carbon import biomass_to_carbon
@@ -201,6 +211,8 @@ def analyze_registered_land(
             "evi_mean": result.get("evi_mean"),
             "mean_agbd_mg_ha": result.get("mean_agbd"),
             "agbd_source": result.get("agbd_source"),
+            "model_name": result.get("model_name"),
+            "model_version": result.get("model_version"),
             "ndvi_change": result.get("ndvi_change"),
         },
         "carbon_stock": carbon_data,
@@ -559,6 +571,11 @@ def submit_for_verification(
     Requires verified land + verified KYC. This starts a tracked workflow —
     it does not itself submit anything to Verra/Gold Standard's real systems.
     """
+    try:
+        validate_registry_methodology(body.registry, body.methodology)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     listing = db.query(LandListing).filter(
         LandListing.id == listing_id,
         LandListing.owner_user_id == user.id,
@@ -605,12 +622,52 @@ def submit_for_verification(
     db.refresh(rec)
 
     result = issuance_to_dict(rec, db)
-    result["message"] = "Submitted for verification. Admin will assign a third-party verifier."
+    result["message"] = "Submitted for verification. Admin will assign a third-party verifier (VVB)."
     return result
+
+
+@router.get("/verification/options")
+def verification_options(user: User = Depends(require_landowner)):
+    """Registries and methodology codes the landowner can submit against."""
+    return {
+        "registries": [
+            {"id": "VERRA", "label": REGISTRY_LABELS["VERRA"]},
+            {"id": "GOLD_STANDARD", "label": REGISTRY_LABELS["GOLD_STANDARD"]},
+        ],
+        "methodologies": {k: sorted(v) for k, v in REGISTRY_METHODOLOGIES.items()},
+        "disclaimer": DISCLAIMER,
+    }
+
+
+@router.get("/verification/{issuance_id}/certificate")
+def download_issuance_certificate_landowner(
+    issuance_id: int,
+    user: User = Depends(require_landowner),
+    db: Session = Depends(get_db),
+):
+    from pathlib import Path as P
+    from fastapi.responses import FileResponse
+
+    rec = db.query(CreditIssuance).filter(
+        CreditIssuance.id == issuance_id,
+        CreditIssuance.owner_user_id == user.id,
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Issuance record not found")
+    if rec.status not in ("VERIFIED", "ISSUED"):
+        raise HTTPException(status_code=400, detail="Certificate available after VERIFIED or ISSUED")
+    if not rec.pdf_path:
+        generate_issuance_certificate(db, rec)
+        db.commit()
+    path = P(rec.pdf_path) if rec.pdf_path else None
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Certificate PDF not found")
+    return FileResponse(path, filename=f"issuance_certificate_{rec.id}.pdf", media_type="application/pdf")
 
 
 def _listing_dict(l: LandListing, db: Session) -> dict:
     parcel = db.query(LandParcel).filter(LandParcel.id == l.parcel_id).first() if l.parcel_id else None
+    issuance = latest_issuance_for_listing(db, l.id)
     return {
         "id": l.id,
         "parcel_id": l.parcel_id,
@@ -630,5 +687,6 @@ def _listing_dict(l: LandListing, db: Session) -> dict:
         "survey_number": parcel.survey_number if parcel else None,
         "plot_number": parcel.plot_number if parcel else None,
         "land_verified": parcel.verification_status == "VERIFIED" if parcel else False,
+        "issuance": issuance_summary(issuance),
         "created_at": l.created_at.isoformat() if l.created_at else None,
     }

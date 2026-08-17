@@ -25,6 +25,7 @@ from services.auth import require_roles
 from models.lease_contract import LeaseContract
 from models.inquiry_message import InquiryMessage
 from services.contract_service import contract_to_dict, generate_contract_pdf
+from services.issuance_service import issuance_summary, latest_issuance_for_listing
 
 
 
@@ -152,9 +153,15 @@ def available_landowners(
 
                 "preliminary_only": listing.preliminary_only,
 
-                "disclaimer": "Preliminary net creditable estimate — not verified issued credits",
+                "disclaimer": (
+                    "Verified registry-issued credits"
+                    if not listing.preliminary_only
+                    else "Preliminary net creditable estimate — not verified issued credits"
+                ),
 
             },
+
+            "issuance": issuance_summary(latest_issuance_for_listing(db, listing.id)),
 
             "notes": listing.notes,
 
@@ -220,7 +227,9 @@ def listing_detail(
 
         "estimated_total_credits_tco2": listing.estimated_total_credits_tco2,
 
-        "preliminary_only": True,
+        "preliminary_only": listing.preliminary_only,
+
+        "issuance": issuance_summary(latest_issuance_for_listing(db, listing.id)),
 
         "notes": listing.notes,
 

@@ -16,7 +16,13 @@ from models.lease_contract import LeaseContract
 from models.inquiry_message import InquiryMessage
 from schemas.auth import KYCReview, LandVerificationReview, IssuanceReview
 from services.contract_service import contract_to_dict
-from services.issuance_service import advance_status, issuance_to_dict
+from services.issuance_service import (
+    advance_status,
+    apply_issued_to_listing,
+    apply_review_rules,
+    generate_issuance_certificate,
+    issuance_to_dict,
+)
 from services.auth import require_roles
 from services.land_registration import DOCS_DIR, parcel_to_dict
 
@@ -284,11 +290,6 @@ def review_verification(
     if not rec:
         raise HTTPException(status_code=404, detail="Issuance record not found")
 
-    try:
-        advance_status(rec, body.status)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
     if body.verifier_name:
         rec.verifier_name = body.verifier_name
     if body.verifier_notes:
@@ -301,7 +302,38 @@ def review_verification(
         rec.registry_serial_number = body.registry_serial_number
     rec.reviewed_by_admin_id = admin.id
 
+    try:
+        apply_review_rules(rec, body.status)
+        advance_status(rec, body.status)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if rec.status in ("VERIFIED", "ISSUED"):
+        generate_issuance_certificate(db, rec)
+    if rec.status == "ISSUED":
+        apply_issued_to_listing(db, rec)
+
     db.commit()
     result = issuance_to_dict(rec, db)
     result["message"] = f"Issuance updated to {rec.status}"
     return result
+
+
+@router.get("/verification/{issuance_id}/certificate")
+def download_issuance_certificate(
+    issuance_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    rec = db.query(CreditIssuance).filter(CreditIssuance.id == issuance_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Issuance record not found")
+    if rec.status not in ("VERIFIED", "ISSUED"):
+        raise HTTPException(status_code=400, detail="Certificate available after VERIFIED or ISSUED")
+    if not rec.pdf_path:
+        generate_issuance_certificate(db, rec)
+        db.commit()
+    path = Path(rec.pdf_path) if rec.pdf_path else None
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Certificate PDF not found")
+    return FileResponse(path, filename=f"issuance_certificate_{rec.id}.pdf", media_type="application/pdf")
